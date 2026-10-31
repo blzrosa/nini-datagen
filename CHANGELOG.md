@@ -95,7 +95,8 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
 - Fase 6, terceira parte: documentação (`docs/guia.md`, `docs/desempenho.md`, `examples/`), `tools/compare.py`
   (contra Faker, Mimesis e dataforge: ns por linha e validade das regras brasileiras; grupo `bench`), publicação no
   TestPyPI por `workflow_dispatch` com teste de instalação em máquinas limpas dos cinco alvos e no PyPI por release,
-  CI com as versões mínimas das dependências (Polars 1.30). Versão 0.2.0rc1.
+  CI com as versões mínimas das dependências (Polars 1.30), que mostrou que o pacote precisa do pyarrow ≥ 19
+  (string_view com vários buffers de texto). Versão 0.2.0rc1.
 - Meta de desempenho revista: a tabela de 20 colunas com 1 thread fica em ~300 ns/linha (MVP: 320,5); a meta de
   200 ns pediria reescrever os geradores mais caros (frase, e-mail, empresa), que já estão no ritmo do MVP ou melhor.
   Vale a regra geral de nenhum gerador ou tabela mais lento que o MVP.

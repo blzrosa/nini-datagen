@@ -33,9 +33,9 @@ dependencies = [
     "polars>=1.30",
     "pydantic>=2.7",
     "platformdirs>=3",
-    # embrulha os buffers do C++ como Arrow (string_view, que o pyarrow só expõe a partir da 16); a fase 2 do plano
-    # investiga tirar isto (interface PyCapsule do Arrow)
-    "pyarrow>=16",
+    # embrulha os buffers do C++ como Arrow. string_view com vários buffers de texto em Array.from_buffers só funciona
+    # a partir do pyarrow 19 (apache/arrow#44651); a fase 2 do plano investiga tirar isto (interface PyCapsule do Arrow)
+    "pyarrow>=19",
 ]
 
 [project.urls]

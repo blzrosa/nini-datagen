@@ -26,7 +26,7 @@ Os wheels trazem a biblioteca C++ compilada para Linux (x86-64 e ARM64), macOS (
 (x86-64), para qualquer Python ≥ 3.11. Em outra plataforma o `pip` compila a partir do código-fonte: precisa de um
 compilador C++17.
 
-Dependências: `polars` ≥ 1.30, `pyarrow` ≥ 16, `numpy`, `pydantic` ≥ 2.7 e `platformdirs`.
+Dependências: `polars` ≥ 1.30, `pyarrow` ≥ 19, `numpy`, `pydantic` ≥ 2.7 e `platformdirs`.
 
 ## Primeiros passos
 
