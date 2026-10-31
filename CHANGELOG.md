@@ -66,6 +66,14 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   Polars no caminho (escala com as threads). Base leve no pacote; a completa em `nini_datagen.datasets.download`
   (cache local, SHA-256, versão do formato). `tools/build_cnefe.py` gera as duas a partir dos dados do MVP. ABI 7.
 
+- Fase 6, primeira parte: `Schema` (validado e compilado uma vez: colunas de gerador, `dg.ref` para dependências,
+  expressões do Polars, ordem por níveis com erro claro para ciclo ou coluna inexistente), `table` com paralelismo
+  por bloco de linhas (todas as colunas de um bloco de uma vez) e `scan`, um `pl.LazyFrame` registrado como fonte de
+  dados do Polars que respeita projeção, filtro e limite e gera em lotes. Os geradores podem começar em qualquer
+  bloco da coluna (`first_block`), e é isso que garante `scan(...).collect() == table(...)`. Geradores novos que
+  dependem de outra coluna: `birthdate` (coerente com a idade), `correlated` (correlação `rho`, também na escala
+  do log; numa tabela, o centro e a escala vêm da distribuição da coluna referida) e `choice_by` (escolha condicional).
+
 ### Próximas fases
-- Fase 5: conferir as amostras com a base real, publicar o release `data-cnefe-v1` e gravar os gabaritos.
-- Fase 6: `table`/`scan` (esquema, LazyFrame) em paralelo por blocos; testes com arquivos de referência (datacompolars).
+- Fase 6, segunda parte: dados sujos (`dirty`), duplicatas e `write_parquet_dataset`.
+- Fase 6, terceira parte: documentação, benchmark contra MVP, Faker, Mimesis e dataforge, TestPyPI e PyPI.

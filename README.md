@@ -4,9 +4,8 @@ Dados sintéticos realistas do Brasil, em escala: CPF, CNPJ (inclusive alfanumé
 IBGE, endereços do CNEFE, telefones, e-mails, textos e mais. Os geradores são kernels C++ que escrevem direto na
 memória do Polars (Arrow `string_view`), sem passar string por string pelo Python.
 
-> **Estado:** v0.2.0 em construção (veja [CHANGELOG.md](CHANGELOG.md)). Já existem os geradores de números, datas,
-> booleanos, escolha em lista e pessoa (sexo, idade, nomes); documentos, rede, endereço, tabelas e LazyFrame entram
-> nas próximas fases.
+> **Estado:** v0.2.0 em construção (veja [CHANGELOG.md](CHANGELOG.md)). Todos os geradores, as tabelas (`table`) e o
+> LazyFrame (`scan`) já existem; faltam dados sujos, gravação em lotes, documentação e a publicação no PyPI.
 
 ## Uso
 
@@ -61,6 +60,9 @@ g.integer(1000, hihg=65)  # ValidationError: Extra inputs are not permitted
 | `address` | `AddressConfig(uf, complement, phone, coords, full, source)` | Struct `{street, number, complement, neighborhood, city, state, cep, ...}` |
 | `city`, `state` | `CityConfig(uf, with_state)`, `StateConfig(weighted)` | String |
 | `sentence`, `paragraph` | `SentenceConfig(theme, templates, slots)`, `ParagraphConfig(..., sentences)` | String |
+| `birthdate` | `BirthdateConfig(on)` + coluna `age` | Date |
+| `correlated` | `CorrelatedConfig(rho, mean, std, lognormal, center, scale)` + coluna `other` | Float64 |
+| `choice_by` | `ChoiceByConfig(options, default)` + coluna `by` | String |
 
 Todos aceitam `name` (nome da coluna) e `null_fraction` (fração de nulos).
 
@@ -92,6 +94,42 @@ g.address(5, full=True).struct.unnest()  # street, number, complement, neighborh
 g.cep(5, uf="SP")
 dg.datasets.download("cnefe")  # depois disso, source="auto" usa a base completa
 ```
+
+## Tabelas e LazyFrame
+
+Um `Schema` descreve a tabela: cada coluna é um gerador com parâmetros, uma referência a outra coluna (`dg.ref`) para
+os geradores que dependem de dados, ou uma expressão do Polars. Ele é validado e compilado uma vez:
+
+```python
+import polars as pl
+
+schema = dg.Schema(
+    {
+        "id": ("cpf", {"unique": True, "formatted": True}),
+        "sexo": "sex",
+        "nome": ("full_name", {"sex": dg.ref("sexo")}),  # nome coerente com o sexo da linha
+        "idade": ("age", {"low": 18, "high": 90}),
+        "nascimento": ("birthdate", {"age": dg.ref("idade"), "on": "2026-01-01"}),
+        "renda": ("correlated", {"other": dg.ref("idade"), "rho": 0.4, "mean": 8, "std": 0.6, "lognormal": True}),
+        "area": (
+            "choice_by",
+            {"by": dg.ref("sexo"), "options": {"F": ["Saúde", "Educação"], "M": ["Engenharia", "Comércio"]}},
+        ),
+        "cliente": dg.CPFConfig(formatted=True),  # também vale o objeto de configuração
+        "meses": pl.col("idade") * 12,
+    }
+)
+
+df = g.table(1_000_000, schema)  # pl.DataFrame
+lf = g.scan(10**9, schema)  # pl.LazyFrame: nada é gerado até o collect
+lf.filter(pl.col("idade") >= 60).select("nome", "renda").head(10).collect()  # gera só o necessário
+```
+
+`table` preenche as colunas bloco a bloco (65.536 linhas), todas as colunas de um bloco de uma vez, com os blocos em
+paralelo: até colunas baratas, como inteiros e booleanos, entram no paralelismo. `scan` registra o schema como fonte
+do Polars: ele recebe as colunas pedidas, o filtro e o limite, e gera em lotes só o que foi pedido. Cada coluna sai igual
+a `g.generate(tipo, n, name=coluna, ...)`, e `scan(n, schema).collect()` é igual a `table(n, schema)`. No `scan`, as
+expressões são avaliadas lote a lote: use expressões linha a linha (sem `mean()`, `rank()` etc.).
 
 ## Reprodutibilidade
 

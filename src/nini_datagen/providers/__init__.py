@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import address, business, choice, contact, documents, network, numbers, person, text
+from . import address, business, choice, contact, documents, network, numbers, person, relations, text
 from .base import Context, Job, Provider, Run
 
 __all__ = [
@@ -18,5 +18,6 @@ __all__ = [
     "network",
     "numbers",
     "person",
+    "relations",
     "text",
 ]

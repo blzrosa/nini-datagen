@@ -46,6 +46,14 @@ class Registry:
     def kinds(self) -> list[str]:
         return sorted(self._providers)
 
+    def kind_of(self, config: BaseConfig) -> str:
+        """Tipo do gerador de uma configuração (``CPFConfig(...)`` -> ``"cpf"``)."""
+        found = [k for k, p in self._providers.items() if type(config) is p.config_cls]
+        if len(found) != 1:
+            what = "nenhum gerador" if not found else f"vários geradores ({', '.join(found)})"
+            raise TypeError(f'{type(config).__name__} é usado por {what}; diga o tipo: ("tipo", config)')
+        return found[0]
+
     def config(self, kind: str, config: Any = None, **kwargs: Any) -> BaseConfig:
         """Monta (e valida) a configuração de ``kind`` a partir de um objeto de config, um dict e/ou kwargs.
 

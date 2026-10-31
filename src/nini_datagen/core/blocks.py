@@ -22,18 +22,30 @@ T = TypeVar("T")
 
 @dataclass(frozen=True, slots=True)
 class Block:
-    index: int  # índice do bloco no fluxo (define o estado do gerador)
-    start: int  # primeira linha do bloco
+    index: int  # posição do bloco nesta geração (índice nos buffers e nos estados já calculados)
+    start: int  # primeira linha do bloco nos buffers desta geração
     rows: int  # quantidade de linhas (BLOCK_ROWS, exceto no último)
+    row0: int = -1  # primeira linha do bloco na coluna inteira (= start, a menos que a geração comece adiante)
+
+    def __post_init__(self) -> None:
+        if self.row0 < 0:
+            object.__setattr__(self, "row0", self.start)
 
 
-def split(n: int) -> list[Block]:
-    """Blocos que cobrem as linhas ``0 .. n-1``."""
+def split(n: int, first_block: int = 0) -> list[Block]:
+    """Blocos que cobrem as linhas ``0 .. n-1`` de uma geração que começa no bloco ``first_block`` da coluna.
+
+    Com ``first_block = k`` as linhas geradas são as linhas ``k * BLOCK_ROWS ..`` da mesma coluna gerada desde o
+    começo (é assim que `scan` e `write_parquet_dataset` produzem lotes que, juntos, dão a tabela inteira).
+    """
     if isinstance(n, bool) or not isinstance(n, int):
         raise TypeError(f"n deve ser um inteiro, não {type(n).__name__}")
     if n < 0:
         raise ValueError("n deve ser >= 0")
-    return [Block(i, s, min(BLOCK_ROWS, n - s)) for i, s in enumerate(range(0, n, BLOCK_ROWS))]
+    if first_block < 0:
+        raise ValueError("first_block deve ser >= 0")
+    base = first_block * BLOCK_ROWS
+    return [Block(i, s, min(BLOCK_ROWS, n - s), base + s) for i, s in enumerate(range(0, n, BLOCK_ROWS))]
 
 
 def resolve_threads(threads: int | None = None) -> int:
@@ -57,8 +69,9 @@ def resolve_threads(threads: int | None = None) -> int:
 def _cpu_count() -> int:
     if hasattr(os, "process_cpu_count"):  # Python 3.13+: respeita afinidade/cgroups
         return os.process_cpu_count() or 1  # type: ignore[attr-defined]
-    if hasattr(os, "sched_getaffinity"):
-        return len(os.sched_getaffinity(0)) or 1
+    affinity = getattr(os, "sched_getaffinity", None)  # Linux (não existe no Windows nem no macOS)
+    if affinity is not None:
+        return len(affinity(0)) or 1
     return os.cpu_count() or 1
 
 

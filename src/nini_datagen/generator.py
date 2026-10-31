@@ -7,6 +7,7 @@ diferentes (``g.integer(10, name="a")``, ``g.integer(10, name="b")``).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import polars as pl
@@ -16,6 +17,8 @@ from .core.rng import new_seed
 from .locales import Locale, get_locale
 from .providers.base import Context
 from .registry import registry
+from .schema import Schema, as_schema
+from .schema import scan as _scan
 
 __all__ = ["DataGen"]
 
@@ -61,11 +64,28 @@ class DataGen:
         sobrescrevem campos. Nome de campo errado ou valor inválido dá ``pydantic.ValidationError``.
         """
         provider = registry.get(kind)
-        if isinstance(n, bool) or not isinstance(n, int) or n < 0:
-            raise ValueError(f"n deve ser um inteiro >= 0, veio {n!r}")
+        _check_n(n)
         inputs = provider.take_inputs(kwargs)
         cfg = registry.config(kind, config, **kwargs)
         return provider.generate(n, cfg, self._ctx, inputs)
+
+    def table(self, n: int, schema: Schema | Mapping[str, Any]) -> pl.DataFrame:
+        """Tabela de ``n`` linhas a partir de um `Schema` (ou do dict que o descreve).
+
+        Cada coluna sai igual a ``generate(tipo, n, name=coluna, ...)``: reordenar, tirar ou acrescentar colunas não
+        muda as outras. As colunas são preenchidas bloco a bloco, todas de uma vez, com os blocos em paralelo.
+        """
+        _check_n(n)
+        return as_schema(schema).bind(self.locale).run(self._ctx, n)
+
+    def scan(self, n: int, schema: Schema | Mapping[str, Any], *, batch_size: int | None = None) -> pl.LazyFrame:
+        """A mesma tabela de `table` como ``pl.LazyFrame``: gera em lotes só as colunas e as linhas pedidas.
+
+        ``g.scan(10**9, schema).select("cpf").head(5).collect()`` gera 5 CPFs. ``batch_size``: linhas por lote
+        (arredondado para múltiplo de 65.536; padrão 1.048.576). Expressões do schema devem ser linha a linha.
+        """
+        _check_n(n)
+        return _scan(as_schema(schema).bind(self.locale), self._ctx, n, batch_size=batch_size)
 
     @staticmethod
     def kinds() -> list[str]:
@@ -232,3 +252,20 @@ class DataGen:
     def state(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
         """UF pela população (`StateConfig`)."""
         return self.generate("state", n, config, **kwargs)
+
+    def birthdate(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Data de nascimento coerente com ``age=<coluna de idades>`` na data ``on`` (`BirthdateConfig`)."""
+        return self.generate("birthdate", n, config, **kwargs)
+
+    def correlated(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Real com correlação ``rho`` com ``other=<coluna numérica>`` (`CorrelatedConfig`)."""
+        return self.generate("correlated", n, config, **kwargs)
+
+    def choice_by(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Escolha que depende de ``by=<coluna>``: ``options={valor: lista}`` (`ChoiceByConfig`)."""
+        return self.generate("choice_by", n, config, **kwargs)
+
+
+def _check_n(n: Any) -> None:
+    if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+        raise ValueError(f"n deve ser um inteiro >= 0, veio {n!r}")

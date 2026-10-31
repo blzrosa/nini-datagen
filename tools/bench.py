@@ -49,6 +49,7 @@ MVP: dict[str, tuple[float, float]] = {
     "cep": (60.8, 60.1),
     "address": (187.4, 187.5),
     "address_full": (443.5, 420.8),
+    "table_20col": (320.5, 165.7),
 }
 TOLERANCE = 1.10
 
@@ -56,7 +57,35 @@ TOLERANCE = 1.10
 @dataclass
 class Case:
     name: str
-    run: Callable[[dg.DataGen, int], pl.Series]
+    run: Callable[[dg.DataGen, int], pl.Series | pl.DataFrame]
+    scale: int = 1  # casos pesados medem com n / scale linhas (como no MVP)
+
+
+# a tabela de 20 colunas do benchmark final do MVP (mesmos tipos, mesmos parâmetros)
+TABLE_20 = dg.Schema(
+    {
+        "cpf": ("cpf", {"formatted": True}),
+        "cnpj": "cnpj",
+        "sexo": "sex",
+        "nome": ("first_name", {"sex": dg.ref("sexo")}),
+        "sobrenome": "last_name",
+        "email": "email",
+        "telefone": "phone",
+        "idade": ("age", {"low": 18, "high": 90}),
+        "nasc": ("birthdate", {"age": dg.ref("idade"), "on": "2026-01-01"}),
+        "renda": ("correlated", {"other": dg.ref("idade"), "rho": 0.5, "mean": 8, "std": 0.6, "lognormal": True}),
+        "cep": "cep",
+        "uuid": "uuid",
+        "ip": "ipv4",
+        "placa": "license_plate",
+        "empresa": "company",
+        "obs": ("sentence", {"null_fraction": 0.3}),
+        "ativo": "boolean",
+        "valor": "uniform",
+        "qtd": "integer",
+        "data": "date",
+    }
+)
 
 
 def _by_sex() -> Callable[[dg.DataGen, int], pl.Series]:
@@ -116,12 +145,15 @@ CASES = [
     Case("address", lambda g, n: g.address(n)),
     Case("address_full", lambda g, n: g.address(n, full=True)),
     Case("city", lambda g, n: g.city(n)),
+    Case("table_20col", lambda g, n: g.table(n, TABLE_20), scale=5),
+    Case("scan_20col_head", lambda g, n: g.scan(10**9, TABLE_20).head(n).collect(), scale=5),
 ]
 
 
 def measure(case: Case, n: int, threads: int, repeats: int = 3) -> float:
     """Melhor de ``repeats`` (ns/linha), depois de uma rodada de aquecimento (carrega bases e caches)."""
     g = dg.DataGen(seed=1, threads=threads)
+    n = max(n // case.scale, 1_000)
     case.run(g, min(n, 100_000))
     best = float("inf")
     for _ in range(repeats):

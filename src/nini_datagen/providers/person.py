@@ -13,7 +13,6 @@ from .._native import lib, ptr
 from ..config.person import AgeConfig, FirstNameConfig, FullNameConfig, LastNameConfig, SexConfig
 from ..core.arrow import string_view_buffers, views_to_series
 from ..core.blocks import Block, map_blocks
-from ..core.rng import block_states
 from ..core.tables import Vocabulary, alias_table
 from ..locales import FirstNames, Locale
 from ..registry import registry
@@ -56,6 +55,14 @@ class AgeProvider(Provider[AgeConfig]):
             seg += np.int32(low)
 
         return ArrayJob(run.n, np.int32, kernel, post=to_age if low else None)
+
+    def moments(self, config: AgeConfig, locale: Locale) -> tuple[float, float]:
+        w = np.asarray(config.weights if config.weights is not None else locale.age_weights(config.low, config.high),
+                       np.float64)  # fmt: skip
+        p = w / w.sum()
+        ages = np.arange(config.low, config.high + 1, dtype=np.float64)
+        mean = float(p @ ages)
+        return mean, float(np.sqrt(p @ (ages - mean) ** 2))
 
 
 # ---------------------------------------------------------------------------------------------- nomes
@@ -198,7 +205,7 @@ class _Indices:
     views (`ViewsChoiceJob`/`ViewsChoiceByJob`): a coluna sai idêntica à do `first_name` com o mesmo fluxo."""
 
     def __init__(self, run: Run, stream: str, pools: _NamePools, sex: str | None, is_f: np.ndarray | None) -> None:
-        self.states = block_states(run.ctx.seed, stream, len(run.blocks))
+        self.states = run.stream_states(stream)
         self.pools, self.sex, self.is_f = pools, sex, is_f
         self.out = np.empty(run.n, np.uint32)
 
@@ -242,9 +249,14 @@ class FullNameProvider(Provider[FullNameConfig]):
         raise NotImplementedError  # composto: monta as partes em `generate`
 
     def generate(
-        self, n: int, config: FullNameConfig, ctx: Context, inputs: Mapping[str, Any] | None = None
+        self,
+        n: int,
+        config: FullNameConfig,
+        ctx: Context,
+        inputs: Mapping[str, Any] | None = None,
+        first_block: int = 0,
     ) -> pl.Series:
-        run = self.start(n, config, ctx)
+        run = self.start(n, config, ctx, first_block)
         name, loc = run.name, run.locale
         inputs = inputs or {}
         pools = _name_pools(loc)
@@ -330,7 +342,7 @@ class _Draw:
     """Índices de um sorteio ponderado (alias), bloco a bloco: mesmo consumo do gerador que `ViewsChoiceJob`."""
 
     def __init__(self, run: Run, stream: str, tab: np.ndarray) -> None:
-        self.states = block_states(run.ctx.seed, stream, len(run.blocks))
+        self.states = run.stream_states(stream)
         self.tab = tab
         self.out = np.empty(run.n, np.uint32)
 
@@ -350,7 +362,7 @@ def _presence(run: Run, stream: str, p: float) -> np.ndarray:
 def _bits(run: Run, stream: str, p: float) -> np.ndarray:
     """Bits Bernoulli(p) do fluxo ``stream`` (como `Run.bits`, para um fluxo com outro nome)."""
     out = np.empty(-(-run.n // 64), np.uint64)
-    st = block_states(run.ctx.seed, stream, len(run.blocks))
+    st = run.stream_states(stream)
     thr = probability_threshold(p)
     for b in run.blocks:
         lib().dg_bool_bits(ptr(st[b.index]), thr, b.rows, ptr(out[b.start // 64 :]))

@@ -30,20 +30,24 @@ from .numbers import (
     UniformConfig,
 )
 from .person import AgeConfig, FirstNameConfig, FullNameConfig, LastNameConfig, SexConfig
+from .relations import BirthdateConfig, ChoiceByConfig, CorrelatedConfig
 from .text import ParagraphConfig, SentenceConfig
 
 __all__ = [
     "AddressConfig",
     "AgeConfig",
     "BaseConfig",
+    "BirthdateConfig",
     "BooleanConfig",
     "CNHConfig",
     "CNPJConfig",
     "CPFConfig",
     "CepConfig",
+    "ChoiceByConfig",
     "ChoiceConfig",
     "CityConfig",
     "CompanyConfig",
+    "CorrelatedConfig",
     "CreditCardConfig",
     "DateConfig",
     "DatetimeConfig",

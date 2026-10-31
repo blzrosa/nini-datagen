@@ -75,13 +75,13 @@ def test_email_domains():
     assert set(c) == {"empresa.com.br", "x.org"}
     assert 0.72 < c["empresa.com.br"] / 5000 < 0.78
     with pytest.raises(ValidationError, match="domain_weights"):
-        dg.EmailConfig(domain_weights=[1.0])
+        dg.EmailConfig.model_validate({"domain_weights": [1.0]})
     with pytest.raises(ValidationError, match="um por domínio"):
-        dg.EmailConfig(domains=["a.com"], domain_weights=[1.0, 2.0])
+        dg.EmailConfig.model_validate({"domains": ["a.com"], "domain_weights": [1.0, 2.0]})
     with pytest.raises(ValidationError, match="domínio inválido"):
-        dg.EmailConfig(domains=["a b.com"])
+        dg.EmailConfig.model_validate({"domains": ["a b.com"]})
     with pytest.raises(ValidationError):
-        dg.UsernameConfig(style_weights=[1, 2])
+        dg.UsernameConfig.model_validate({"style_weights": [1, 2]})
 
 
 # ------------------------------------------------------------------ empresa, veículo, profissão
@@ -214,8 +214,8 @@ def test_custom_templates_and_slots():
     assert 0.72 < c[True] / 5000 < 0.78
     assert all(re.fullmatch(r"Pedido \d{3} enviado .+\.", r) for r in rows if r != "Sem observações.")
     with pytest.raises(ValidationError, match="templates"):
-        dg.SentenceConfig(slots={"x": ["a"]})
-    cfg = dg.SentenceConfig(templates=["a {x}"], slots={"x": ["b"]})
+        dg.SentenceConfig.model_validate({"slots": {"x": ["a"]}})
+    cfg = dg.SentenceConfig.model_validate({"templates": ["a {x}"], "slots": {"x": ["b"]}})
     assert hash(cfg) == hash(dg.SentenceConfig(templates=("a {x}",), slots=(("x", ("b",)),)))
     with pytest.raises(ValueError, match="não está definido"):
         dg.sentence(3, seed=1, templates=["{nada}"])

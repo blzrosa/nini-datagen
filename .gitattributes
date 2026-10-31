@@ -1,0 +1,5 @@
+# dados com bytes fixos em qualquer sistema (o Git no Windows trocaria LF por CRLF nos .tsv)
+*.tsv text eol=lf
+*.json text eol=lf
+*.parquet binary
+*.zip binary

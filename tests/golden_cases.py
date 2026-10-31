@@ -38,12 +38,28 @@ def _people() -> pl.DataFrame:
     return pl.DataFrame([sx, g.first_name(N, sex=sx), g.full_name(N, sex=sx), g.age(N)])
 
 
+def _table() -> pl.DataFrame:
+    """Geradores que dependem de outra coluna (só existem com ``ref``) e a montagem da tabela."""
+    schema = dg.Schema({
+        "sexo": "sex",
+        "nome": ("first_name", {"sex": dg.ref("sexo")}),
+        "completo": ("full_name", {"sex": dg.ref("sexo"), "null_fraction": 0.1}),
+        "idade": ("age", {"low": 18, "high": 90, "null_fraction": 0.05}),
+        "nascimento": ("birthdate", {"age": dg.ref("idade"), "on": "2026-01-01"}),
+        "renda": ("correlated", {"other": dg.ref("idade"), "rho": 0.5, "mean": 8, "std": 0.6, "lognormal": True}),
+        "area": ("choice_by", {"by": dg.ref("sexo"), "options": {"F": ["a", "b"], "M": (["c", "d"], [1, 3])}}),
+        "meses": pl.col("idade") * 12,
+    })  # fmt: skip
+    return dg.DataGen(seed=SEED).table(N, schema)
+
+
 # gabaritos ainda não gravados (esperando a conferência das amostras): sem o arquivo o teste é pulado, e o
 # --record-golden também não grava estes. Depois de conferir, tire da lista e grave.
 PENDING: set[str] = set()
 
 GOLDEN_CASES: dict[str, Callable[[], pl.DataFrame]] = {name: _single(name) for name in sorted(CASES)}
 GOLDEN_CASES["people"] = _people
+GOLDEN_CASES["table"] = _table
 
 
 def build(name: str) -> pl.DataFrame:

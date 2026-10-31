@@ -35,6 +35,7 @@ __all__ = [
     "BitsJob",
     "Context",
     "Job",
+    "Prepared",
     "Provider",
     "Run",
     "TextJob",
@@ -60,12 +61,17 @@ class Context:
 
 @dataclass(frozen=True)
 class Run:
-    """Uma geração de uma coluna: o `Context`, o nome da coluna (que é também o fluxo) e os blocos."""
+    """Uma geração de uma coluna: o `Context`, o nome da coluna (que é também o fluxo) e os blocos.
+
+    ``first_block``: bloco da coluna em que esta geração começa (0 = desde a primeira linha). Os estados do gerador
+    são sempre os da coluna inteira, então gerar em lotes dá exatamente o mesmo que gerar tudo de uma vez.
+    """
 
     ctx: Context
     name: str
     n: int
     blocks: list[Block]
+    first_block: int = 0
 
     @property
     def locale(self) -> Locale:
@@ -73,7 +79,11 @@ class Run:
 
     def states(self, suffix: str = "") -> np.ndarray:
         """Estados do gerador por bloco, ``(len(blocks), 4)``, do fluxo ``name + suffix`` (sufixo = fluxo auxiliar)."""
-        return block_states(self.ctx.seed, self.name + suffix, len(self.blocks))
+        return self.stream_states(self.name + suffix)
+
+    def stream_states(self, stream: str) -> np.ndarray:
+        """Estados por bloco de um fluxo com nome qualquer (providers compostos), alinhados a esta geração."""
+        return block_states(self.ctx.seed, stream, len(self.blocks), self.first_block)
 
     def bits(self, p: float, suffix: str) -> np.ndarray:
         """Bits Bernoulli(p) para as ``n`` linhas, num fluxo auxiliar (bloco a bloco, como os dados)."""
@@ -84,6 +94,27 @@ class Run:
         for b in self.blocks:
             fn(ptr(st[b.index]), thr, b.rows, ptr(out[b.start // 64 :]))
         return out
+
+
+@dataclass
+class Prepared:
+    """Uma coluna planejada: preencha cada bloco com `fill` (em qualquer ordem, em paralelo) e monte com `finish`."""
+
+    run: Run
+    job: Job
+    states: np.ndarray
+    validity: np.ndarray | None
+    null_states: np.ndarray | None
+    threshold: int
+
+    def fill(self, b: Block) -> None:
+        self.job.fill(b, self.states[b.index])
+        if self.validity is not None and self.null_states is not None:
+            lib().dg_bool_bits(ptr(self.null_states[b.index]), self.threshold, b.rows,
+                               ptr(self.validity[b.start // 64 :]))  # fmt: skip
+
+    def finish(self) -> pl.Series:
+        return self.job.finish(self.run.name, self.validity)
 
 
 class Job(ABC):
@@ -137,26 +168,40 @@ class Provider(ABC, Generic[C]):
     def column_name(self, config: C) -> str:
         return config.name or self.kind
 
-    def start(self, n: int, config: C, ctx: Context) -> Run:
-        return Run(ctx, self.column_name(config), n, split(n))
+    def start(self, n: int, config: C, ctx: Context, first_block: int = 0) -> Run:
+        return Run(ctx, self.column_name(config), n, split(n, first_block), first_block)
 
-    def generate(self, n: int, config: C, ctx: Context, inputs: Mapping[str, Any] | None = None) -> pl.Series:
-        run = self.start(n, config, ctx)
+    def prepare(
+        self, n: int, config: C, ctx: Context, inputs: Mapping[str, Any] | None = None, first_block: int = 0
+    ) -> Prepared:
+        """Planeja a coluna sem preencher: quem chama roda `Prepared.fill` em cada bloco e depois `Prepared.finish`.
+
+        É o que as tabelas usam para preencher todas as colunas de um bloco de uma vez (paralelismo por bloco).
+        """
+        run = self.start(n, config, ctx, first_block)
         job = self.plan(run, config, inputs or {})
-        states = run.states()
         validity = validity_bits(n, config.null_fraction)
         null_states = run.states(":null") if validity is not None else None
-        thr = probability_threshold(1.0 - config.null_fraction)
-        bits = lib().dg_bool_bits
+        return Prepared(
+            run, job, run.states(), validity, null_states, probability_threshold(1.0 - config.null_fraction)
+        )
 
-        def one(b: Block) -> None:
-            job.fill(b, states[b.index])
-            if validity is not None and null_states is not None:
-                bits(ptr(null_states[b.index]), thr, b.rows, ptr(validity[b.start // 64 :]))
-
+    def generate(
+        self, n: int, config: C, ctx: Context, inputs: Mapping[str, Any] | None = None, first_block: int = 0
+    ) -> pl.Series:
+        prep = self.prepare(n, config, ctx, inputs, first_block)
         threads = 1 if self.ns_per_row < PARALLEL_MIN_NS else ctx.threads
-        map_blocks(one, run.blocks, threads)
-        return job.finish(run.name, validity)
+        map_blocks(prep.fill, prep.run.blocks, threads)
+        return prep.finish()
+
+    def moments(self, config: C, locale: Locale) -> tuple[float, float] | None:
+        """Média e desvio padrão da distribuição gerada, quando conhecidos (usados por ``correlated`` numa tabela)."""
+        return None
+
+    @property
+    def composite(self) -> bool:
+        """True se o provider monta a coluna sozinho (sobrescreve `generate`) e não pode ser preparado por bloco."""
+        return type(self).generate is not Provider.generate
 
     def validity(self, run: Run, config: C) -> np.ndarray | None:
         """Bits de presença (mesmo fluxo ``:null`` do roteiro comum), para providers compostos."""
@@ -219,7 +264,7 @@ class TextJob(Job):
     def fill(self, block: Block, state: np.ndarray) -> None:
         seg = self.views[block.start : block.start + block.rows]
         data = np.empty(block.rows * self.stride + self.slack, np.uint8) if self.stride else self._DUMMY
-        self.kernel(ptr(state), block.rows, ptr(seg), ptr(data), block.start)
+        self.kernel(ptr(state), block.rows, ptr(seg), ptr(data), block.row0)
         if self.stride:
             # uma passada no C++: aponta as views longas para o buffer deste bloco e mede os bytes usados
             used = lib().dg_views_used(ptr(seg), block.rows, block.index)

@@ -6,23 +6,28 @@ o mesmo.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import polars as pl
 
 from .generator import DataGen
 from .locales import Locale
+from .schema import Schema
 
 __all__ = [
     "address",
     "age",
+    "birthdate",
     "boolean",
     "cep",
     "choice",
+    "choice_by",
     "city",
     "cnh",
     "cnpj",
     "company",
+    "correlated",
     "cpf",
     "credit_card",
     "date",
@@ -46,9 +51,11 @@ __all__ = [
     "phone",
     "pis",
     "rg",
+    "scan",
     "sentence",
     "sex",
     "state",
+    "table",
     "uniform",
     "url",
     "username",
@@ -71,6 +78,34 @@ def generate(
 ) -> pl.Series:
     """Gera ``n`` valores do tipo ``kind``; veja `DataGen.generate`."""
     return DataGen(seed, locale=locale, threads=threads).generate(kind, n, config, **kwargs)
+
+
+def table(
+    n: int,
+    schema: Schema | Mapping[str, Any],
+    *,
+    seed: int | None = None,
+    locale: str | Locale = "pt_BR",
+    threads: int | None = None,
+) -> pl.DataFrame:
+    """Tabela de ``n`` linhas; veja `DataGen.table`."""
+    return DataGen(seed, locale=locale, threads=threads).table(n, schema)
+
+
+def scan(
+    n: int,
+    schema: Schema | Mapping[str, Any],
+    *,
+    seed: int | None = None,
+    locale: str | Locale = "pt_BR",
+    threads: int | None = None,
+    batch_size: int | None = None,
+) -> pl.LazyFrame:
+    """Tabela como ``pl.LazyFrame``, gerada sob demanda; veja `DataGen.scan`.
+
+    Sem ``seed``, a semente é sorteada uma vez aqui: coletar o mesmo LazyFrame duas vezes dá a mesma tabela.
+    """
+    return DataGen(seed, locale=locale, threads=threads).scan(n, schema, batch_size=batch_size)
 
 
 def _shortcut(kind: str, doc: str) -> Any:
@@ -131,3 +166,6 @@ cep = _shortcut("cep", DataGen.cep.__doc__ or "")
 address = _shortcut("address", DataGen.address.__doc__ or "")
 city = _shortcut("city", DataGen.city.__doc__ or "")
 state = _shortcut("state", DataGen.state.__doc__ or "")
+birthdate = _shortcut("birthdate", DataGen.birthdate.__doc__ or "")
+correlated = _shortcut("correlated", DataGen.correlated.__doc__ or "")
+choice_by = _shortcut("choice_by", DataGen.choice_by.__doc__ or "")

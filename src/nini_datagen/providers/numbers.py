@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -19,6 +20,7 @@ from ..config.numbers import (
     epoch,
 )
 from ..core.arrow import arrow_type
+from ..locales import Locale
 from ..registry import registry
 from .base import ArrayJob, BitsJob, Job, Provider, Run, probability_threshold
 
@@ -39,6 +41,10 @@ class IntegerProvider(Provider[IntegerConfig]):
         f64 = lib().dg_rand_i64
         return ArrayJob(run.n, np.int64, lambda st, m, o: f64(st, low, span, m, o))
 
+    def moments(self, config: IntegerConfig, locale: Locale) -> tuple[float, float]:
+        span = config.high - config.low + 1
+        return (config.low + config.high) / 2, math.sqrt((span * span - 1) / 12)
+
 
 @registry.register
 class UniformProvider(Provider[UniformConfig]):
@@ -54,6 +60,9 @@ class UniformProvider(Provider[UniformConfig]):
         f64 = lib().dg_rand_f64
         return ArrayJob(run.n, np.float64, lambda st, m, o: f64(st, lo, hi, m, o))
 
+    def moments(self, config: UniformConfig, locale: Locale) -> tuple[float, float]:
+        return (config.low + config.high) / 2, (config.high - config.low) / math.sqrt(12)
+
 
 @registry.register
 class NormalProvider(Provider[NormalConfig]):
@@ -65,6 +74,9 @@ class NormalProvider(Provider[NormalConfig]):
         fn, mu, sd = lib().dg_rand_normal, config.mean, config.std
         return ArrayJob(run.n, np.float64, lambda st, m, o: fn(st, mu, sd, 0, m, o))
 
+    def moments(self, config: NormalConfig, locale: Locale) -> tuple[float, float]:
+        return config.mean, config.std
+
 
 @registry.register
 class LognormalProvider(Provider[LognormalConfig]):
@@ -75,6 +87,10 @@ class LognormalProvider(Provider[LognormalConfig]):
     def plan(self, run: Run, config: LognormalConfig, inputs: Mapping[str, Any]) -> Job:
         fn, mu, sd = lib().dg_rand_normal, config.mean, config.sigma
         return ArrayJob(run.n, np.float64, lambda st, m, o: fn(st, mu, sd, 1, m, o))
+
+    def moments(self, config: LognormalConfig, locale: Locale) -> tuple[float, float]:
+        mu, s2 = config.mean, config.sigma * config.sigma
+        return math.exp(mu + s2 / 2), math.sqrt(math.expm1(s2) * math.exp(2 * mu + s2))
 
 
 @registry.register

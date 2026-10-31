@@ -41,6 +41,41 @@ def address_section(g: dg.DataGen) -> list[str]:
     return out
 
 
+def table_section(g: dg.DataGen) -> list[str]:
+    schema = dg.Schema({
+        "id": ("cpf", {"unique": True, "formatted": True}),
+        "sexo": "sex",
+        "nome": ("full_name", {"sex": dg.ref("sexo")}),
+        "idade": ("age", {"low": 18, "high": 90}),
+        "nascimento": ("birthdate", {"age": dg.ref("idade"), "on": "2026-01-01"}),
+        "renda": ("correlated", {"other": dg.ref("idade"), "rho": 0.4, "mean": 8, "std": 0.6, "lognormal": True}),
+        "area": ("choice_by", {"by": dg.ref("sexo"), "options": {
+            "F": (["Saúde", "Educação", "Administração"], [4, 4, 2]),
+            "M": (["Engenharia", "Comércio", "Administração"], [4, 3, 3]),
+        }}),
+        "uf": "state",
+        "meses": pl.col("idade") * 12,
+    })  # fmt: skip
+    df = g.table(N_STATS, schema)
+    out = ["", "## Tabela (Schema com ref e expressão)", "", f"`{schema!r}`", ""]
+    with pl.Config(tbl_rows=N_SHOW, tbl_cols=-1, fmt_str_lengths=40, tbl_width_chars=400):
+        out += ["```", str(df.head(N_SHOW)), "```", ""]
+    corr = df.select(pl.corr(pl.col("idade"), pl.col("renda").log())).item()
+    out.append(f"Correlação idade x log(renda): {corr:.3f} (pedido: 0,4)")
+    years = df.select(
+        (pl.lit(2026) - pl.col("nascimento").dt.year() - (pl.col("nascimento").dt.ordinal_day() > 1).cast(pl.Int32))
+        == pl.col("idade")
+    ).to_series()
+    out.append(f"Nascimento coerente com a idade em 01/01/2026: {years.mean():.2%}")
+    cross = df.group_by("sexo", "area").len().sort("sexo", "len", descending=[False, True])
+    out.append("Área por sexo: " + ", ".join(f"{a}/{b} {c:,}" for a, b, c in cross.iter_rows()))
+    lf = g.scan(10**9, schema)
+    head = lf.select("id", "nome").head(5).collect()
+    same = head.equals(df.select("id", "nome").head(5))
+    out += ["", f"`scan(10**9, schema).select('id', 'nome').head(5)` = início da tabela: {same}", ""]
+    return out
+
+
 def main() -> None:
     g = dg.DataGen(seed=2026)
     out = ["# Amostras do nini-datagen", "", f"seed = {g.seed} · {dg.__version__}", ""]
@@ -136,6 +171,7 @@ def main() -> None:
     brands = Counter(v["brand"].to_list()).most_common()
     out.append("Marcas: " + ", ".join(f"{b} ({c / len(v):.1%})" for b, c in brands))
     out += address_section(g)
+    out += table_section(g)
     text = "\n".join(out) + "\n"
     print(text)
     if len(sys.argv) > 1:

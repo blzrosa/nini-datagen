@@ -55,7 +55,7 @@ def test_cep_by_uf():
     with pytest.raises(ValueError, match="UF desconhecida"):
         dg.cep(10, seed=1, uf="XX")
     with pytest.raises(ValidationError, match="sigla"):
-        dg.CepConfig(uf="São Paulo")
+        dg.CepConfig.model_validate({"uf": "São Paulo"})
 
 
 # ------------------------------------------------------------------ endereço
