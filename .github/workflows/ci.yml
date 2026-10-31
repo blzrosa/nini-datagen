@@ -29,8 +29,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]  # macos-latest já é ARM64 (Apple Silicon)
         python: ["3.11", "3.12", "3.13", "3.14"]
+        include:  # Linux ARM64 nativo: confere os gabaritos (gravados em x86-64) também no aarch64 do Linux
+          - {os: ubuntu-24.04-arm, python: "3.11"}
+          - {os: ubuntu-24.04-arm, python: "3.14"}
     env:  # no nível do job: o `uv run` recompilaria se a variável mudasse entre os passos
       DG_CLANGCL: ${{ matrix.python != '3.11' && '1' || '' }}
     steps:

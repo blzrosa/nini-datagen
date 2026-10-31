@@ -16,8 +16,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ubuntu-24.04-arm: aarch64 nativo (sem QEMU); macos-13: x86_64; macos-14: arm64
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-13, macos-14]
+        # ubuntu-24.04-arm: aarch64 nativo (sem QEMU); macos-15-intel: x86_64 (o macos-13 foi desativado em 12/2025;
+        # o GitHub mantém Intel até o fim do macOS 15, previsto para o 2º semestre de 2027); macos-14: arm64.
+        # Windows ARM64 fica de fora: o pyarrow (dependência) não publica wheels win_arm64. Entra quando o pacote
+        # deixar de depender dele (buffers pela interface PyCapsule do Arrow).
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15-intel, macos-14]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
