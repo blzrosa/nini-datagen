@@ -1,9 +1,19 @@
 name: wheels
 
-# Gera os wheels (um por sistema/arquitetura, tag py3-none-<plataforma>) e o sdist. Publica no PyPI ao criar uma
-# release no GitHub (publicação confiável/OIDC: configure o projeto "nini-datagen" no PyPI para este workflow).
+# Gera os wheels (um por sistema/arquitetura, tag py3-none-<plataforma>) e o sdist, e publica:
+# - no TestPyPI: Actions -> wheels -> Run workflow -> publish = testpypi (depois instala do TestPyPI em máquinas
+#   limpas dos três sistemas e roda um teste rápido);
+# - no PyPI: ao publicar uma release no GitHub.
+# Publicação confiável (OIDC, sem senha): no PyPI e no TestPyPI, cadastre o "trusted publisher" com dono blzrosa,
+# repositório nini-datagen, workflow wheels.yml e ambiente pypi / testpypi (os ambientes existem no GitHub também).
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publicar em"
+        type: choice
+        options: [none, testpypi]
+        default: none
   release:
     types: [published]
   pull_request:
@@ -43,7 +53,67 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
-  publish:
+  publish-testpypi:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == 'testpypi'
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  # instala do TestPyPI numa máquina limpa (sem compilador, sem o repositório) e gera dados de verdade
+  smoke-testpypi:
+    needs: publish-testpypi
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15-intel, macos-14]
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: pyproject.toml
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: versão publicada
+        shell: bash
+        run: echo "VERSION=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")" >> "$GITHUB_ENV"
+      - name: instala do TestPyPI (só wheel; as dependências vêm do PyPI)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5 6; do
+            python -m pip install --only-binary nini-datagen --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ "nini-datagen==$VERSION" && break
+            echo "ainda não disponível no índice; tentando de novo em 30 s"; sleep 30
+          done
+          python -m pip show nini-datagen
+      - name: gera dados
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          python - <<'PY'
+          import nini_datagen as dg
+
+          df = dg.table(100_000, {"cpf": ("cpf", {"formatted": True}), "nome": "full_name", "end": "address"}, seed=1)
+          assert df.height == 100_000
+          assert all(dg.validators.cpf(x) for x in df["cpf"].head(1000))
+          assert dg.scan(10**9, {"x": "uuid"}, seed=1).head(5).collect().height == 5
+          print(dg.__version__, df.head(3))
+          PY
+
+  publish-pypi:
     if: github.event_name == 'release'
     needs: [wheels, sdist]
     runs-on: ubuntu-latest

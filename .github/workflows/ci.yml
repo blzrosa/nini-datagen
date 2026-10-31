@@ -44,6 +44,19 @@ jobs:
       - run: uv sync
       - run: uv run pytest -m "not bench" --cov --cov-report=term-missing
 
+  min-deps:
+    # as versões mínimas declaradas (polars 1.30, pydantic 2.7, numpy 1.24, pyarrow 14...): o plano pede o scan testado
+    # na versão mais antiga do Polars que o pacote aceita, além da mais nova (que os outros jobs usam)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv sync --resolution lowest-direct
+      - run: uv pip list | grep -Ei "^(polars|pyarrow|numpy|pydantic) "
+      - run: uv run --no-sync pytest -m "not bench" -q -p no:cacheprovider
+
   sanitizers:
     # AddressSanitizer + UBSan nos kernels: pega escrita fora do buffer, que o ctypes não detecta
     runs-on: ubuntu-latest

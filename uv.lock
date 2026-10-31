@@ -173,12 +173,33 @@ wheels = [
 ]
 
 [[package]]
+name = "dataforge-py"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/69/af9c6713d8f4115ab9ccf13e6eb124f128c8445eb76c2696bc747afd68e1/dataforge_py-0.6.0.tar.gz", hash = "sha256:f39d0872bd57f8e2bd8ecdabd7fb860f915a46ef86c26ca4ff4f2f5cfac562c0", size = 183079, upload-time = "2026-08-31T19:48:07.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/af/ac/5320711dbaa32d53ed7227731195df5ab8688879848fd10eb50c989ea745/dataforge_py-0.6.0-py3-none-any.whl", hash = "sha256:98cefca213395da9ab20258954485c015af872884c7f5f1e51dcce0af7b90a36", size = 265185, upload-time = "2026-08-31T19:48:05.854Z" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.4"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/68/bc/d36966de7304047a1001a7559fbf266c464bb5d8cc85464536ef8c9bcc32/distlib-0.4.4.tar.gz", hash = "sha256:ca4175b4ac7f71223cc30ed7248c45d2b38c2439d8ee6e498ab67ed63cf3508d", size = 621304, upload-time = "2026-10-16T13:56:34.203Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/2b/238f02a4927fa2e27aa995371d240a468b52e42eae44a678434aff736b38/distlib-0.4.4-py2.py3-none-any.whl", hash = "sha256:cf09d55b1e85a89576b036aeb71550bfd68320f3f21761ca329eadadad918638", size = 472099, upload-time = "2026-10-16T13:56:32.053Z" },
+]
+
+[[package]]
+name = "faker"
+version = "40.44.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/87/22/965c7b822f4c80f6e003c696d5fa01b48eea6cc7852d61aec8779519b346/faker-40.44.0.tar.gz", hash = "sha256:97245a3756dcaf35418b89bea9f03ae6881557db0032bf048744c2aaee2a9108", size = 2034259, upload-time = "2026-10-28T17:06:41.048Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/9e/3da962809aefa00ddf457d1b11bba41d7766373a0ad9e537fa0804604361/faker-40.44.0-py3-none-any.whl", hash = "sha256:db808a3ec33fe9ce5caf40b9fb61f85f46e429a56966f765209272adec83e4c6", size = 2069747, upload-time = "2026-10-28T17:06:39.109Z" },
 ]
 
 [[package]]
@@ -209,8 +230,17 @@ wheels = [
 ]
 
 [[package]]
+name = "mimesis"
+version = "22.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/2b/629274dd6e23df1ab470e2c039c77033f674f73f0d48cca3d0c7777fce67/mimesis-22.2.0.tar.gz", hash = "sha256:7cd7d9dadd226129fd8bc6039fb0ff9b58efb2b4001022357f69381208e1df68", size = 18289536, upload-time = "2026-09-23T10:29:30.901Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/a6/1031fb1c0f453abd96589e2126707a42bcc4d19ec1d705886df6188182df/mimesis-22.2.0-py3-none-any.whl", hash = "sha256:037011eb3d5edf0b0b5d9eafd74d9881f6dce25b4f01032da0e13fb2a56f37e9", size = 4463089, upload-time = "2026-09-23T10:29:27.931Z" },
+]
+
+[[package]]
 name = "nini-datagen"
-version = "0.2.0.dev0"
+version = "0.2.0rc1"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -222,6 +252,11 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+bench = [
+    { name = "dataforge-py", marker = "python_full_version >= '3.12'" },
+    { name = "faker" },
+    { name = "mimesis" },
+]
 dev = [
     { name = "datacompolars" },
     { name = "pre-commit" },
@@ -243,6 +278,11 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+bench = [
+    { name = "dataforge-py", marker = "python_full_version >= '3.12'" },
+    { name = "faker", specifier = ">=30" },
+    { name = "mimesis", specifier = ">=12" },
+]
 dev = [
     { name = "datacompolars", specifier = ">=0.4.3" },
     { name = "pre-commit", specifier = ">=3.5" },
@@ -1011,6 +1051,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a3/26/b09b8010994eccc3c09092e6b34058f36a460eea2d4c3e8b910c695975a0/typing_inspection-0.4.4.tar.gz", hash = "sha256:547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47", size = 76928, upload-time = "2026-08-12T12:37:25.997Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl", hash = "sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147", size = 14750, upload-time = "2026-08-12T12:37:24.648Z" },
+]
+
+[[package]]
+name = "tzdata"
+version = "2026.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/29/6a1391d31cd00ff9e927215a224a880e1e84e826b64ba80a499e51c074d8/tzdata-2026.6.tar.gz", hash = "sha256:85d2cd9c09f81f0bb29db27759fc83af4f1e620efb814f8c5bf8b4cc4feece6d", size = 201017, upload-time = "2026-10-28T09:57:09.137Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/66/9a06c2227fedfd4919f0eaaa8b94377d9730882a7e4f95823c9a331ab5e1/tzdata-2026.6-py2.py3-none-any.whl", hash = "sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec", size = 348210, upload-time = "2026-10-28T09:57:07.276Z" },
 ]
 
 [[package]]

@@ -4,8 +4,9 @@ Dados sintéticos realistas do Brasil, em escala: CPF, CNPJ (inclusive alfanumé
 IBGE, endereços do CNEFE, telefones, e-mails, textos e mais. Os geradores são kernels C++ que escrevem direto na
 memória do Polars (Arrow `string_view`), sem passar string por string pelo Python.
 
-> **Estado:** v0.2.0 em construção (veja [CHANGELOG.md](CHANGELOG.md)). Geradores, tabelas (`table`), LazyFrame
-> (`scan`), dados sujos e gravação em lotes já existem; faltam ajustes de desempenho, documentação e o PyPI.
+> **Estado:** v0.2.0 em teste (0.2.0rc1; veja o [CHANGELOG](CHANGELOG.md)). Guia completo em
+> [docs/guia.md](docs/guia.md), números em [docs/desempenho.md](docs/desempenho.md) e exemplos em
+> [examples/](examples/).
 
 ## Uso
 
@@ -151,6 +152,14 @@ Os defeitos seguem as mesmas regras de reprodutibilidade dos dados: cada um tem 
 em `table`, `scan` e `write_parquet_dataset`. Os arquivos gravados juntos são exatamente `table(n, schema)`, para
 qualquer `batch_rows`.
 
+## Desempenho
+
+Os geradores são kernels C++ que escrevem direto na memória do Polars, em blocos de 65.536 linhas, em paralelo. Na
+máquina de desenvolvimento (Windows, 16 threads), com 1 thread: CPF ~10 ns/linha, nome ~5, e-mail ~30, frase ~60,
+endereço completo do CNEFE ~100; a tabela de 20 colunas do benchmark sai a ~300 ns/linha com 1 thread e ~110 com 16
+(1 milhão de linhas em ~0,1 s). Detalhes, método e comparação com Faker, Mimesis e dataforge em
+[docs/desempenho.md](docs/desempenho.md).
+
 ## Reprodutibilidade
 
 A partir da 0.2.0, a mesma `seed` dá sempre a mesma saída, em qualquer sistema e com qualquer número de threads, e
@@ -179,6 +188,8 @@ uv run pytest                             # testes
 uv run pytest -m bench -s                 # benchmarks contra o MVP (fora da suíte padrão)
 uv run python tools/bench.py              # tabela completa de ns/linha
 uv run python tools/samples.py            # amostras de cada gerador
+uv run python tools/profile_table.py      # onde vai o tempo da tabela e dos endereços
+uv run --isolated --python 3.14 --group bench python tools/compare.py   # contra Faker, Mimesis e dataforge
 uv run ruff check . && uv run pyright     # qualidade
 uv run python tools/gen_bindings.py       # depois de mudar a assinatura de uma função DG_EXPORT
 ```
@@ -196,16 +207,21 @@ uv run python tools/gen_bindings.py       # depois de mudar a assinatura de uma 
 ```
 cpp/                     kernels C++ (ABI em C, prefixo dg_), um arquivo por domínio
 src/nini_datagen/
-  __init__.py, api.py    funções soltas (dg.integer...) e exportações
+  __init__.py, api.py    funções soltas (dg.integer, dg.table...) e exportações
   generator.py           DataGen: semente, locale e threads; um método por gerador
   registry.py            registro dos geradores por nome e montagem das configurações
-  config/                modelos Pydantic (um por gerador)
+  config/                modelos Pydantic (um por gerador, mais DirtyConfig)
   providers/             um gerador por tipo: plan() aloca, Job.fill() preenche cada bloco, Job.finish() entrega
-  locales/pt_BR/         dados e regras do Brasil (data/*.tsv)
+  schema/                Schema (colunas, ref, expressões, níveis), table e scan (fonte do Polars)
+  transforms/            dados sujos e duplicatas
+  io/                    write_parquet_dataset
+  datasets/              download com cache (CNEFE completo)
+  locales/pt_BR/         dados e regras do Brasil (data/)
   core/                  sementes e fluxos, blocos e threads, views do Arrow, tabelas alias e vocabulários
   _native.py             carrega a biblioteca C++ e confere a versão da ABI
 tests/                   pytest; tests/golden/ guarda os gabaritos da v0.2.0
-tools/                   bindings, benchmark, amostras
+tools/                   bindings, benchmarks, diagnóstico, comparação, amostras, base do CNEFE
+docs/, examples/         guia, desempenho e exemplos
 ```
 
 Gerador novo: uma configuração em `config/`, um provider com `@registry.register` em `providers/` e um atalho em

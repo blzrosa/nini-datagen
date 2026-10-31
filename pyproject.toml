@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "nini-datagen"
-version = "0.2.0.dev0"
+version = "0.2.0rc1"
 description = "Dados sintéticos realistas do Brasil em escala: kernels C++ que escrevem direto em Polars."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ license-files = ["LICENSE", "DATA_LICENSES.md"]
 authors = [{ name = "Nini (blzrosa)" }]
 keywords = ["fake data", "synthetic data", "dados sintéticos", "polars", "cpf", "cnpj", "brasil", "testing"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Natural Language :: Portuguese (Brazilian)",
@@ -38,6 +38,7 @@ dependencies = [
 ]
 
 [project.urls]
+Documentation = "https://github.com/blzrosa/nini-datagen/blob/main/docs/guia.md"
 Repository = "https://github.com/blzrosa/nini-datagen"
 Issues = "https://github.com/blzrosa/nini-datagen/issues"
 Changelog = "https://github.com/blzrosa/nini-datagen/blob/main/CHANGELOG.md"
@@ -51,6 +52,14 @@ dev = [
     "ruff>=0.6",
     "pyright>=1.1.380",
     "pre-commit>=3.5",
+]
+# comparação com outras bibliotecas (tools/compare.py). O dataforge-py só existe para Python >= 3.12: no 3.11 ele
+# fica de fora e o compare.py pula a coluna dele. A tabela do repositório é gerada no 3.14:
+#   uv run --isolated --python 3.14 --group bench python tools/compare.py --markdown benchmarks/comparacao.md
+bench = [
+    "faker>=30",
+    "mimesis>=12",
+    "dataforge-py; python_version >= '3.12'",
 ]
 
 # ------------------------------------------------------------------ uv
