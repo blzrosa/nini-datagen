@@ -1,5 +1,15 @@
 # nini-datagen
 
+[![CI](https://github.com/blzrosa/nini-datagen/actions/workflows/ci.yml/badge.svg)](https://github.com/blzrosa/nini-datagen/actions/workflows/ci.yml)
+[![wheels](https://github.com/blzrosa/nini-datagen/actions/workflows/wheels.yml/badge.svg)](https://github.com/blzrosa/nini-datagen/actions/workflows/wheels.yml)
+[![PyPI](https://img.shields.io/pypi/v/nini-datagen)](https://pypi.org/project/nini-datagen/)
+[![Python](https://img.shields.io/pypi/pyversions/nini-datagen)](https://pypi.org/project/nini-datagen/)
+[![Polars](https://img.shields.io/badge/polars-%E2%89%A5%201.30-0075ff)](https://pola.rs)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
+
 Dados sintéticos realistas do Brasil, em escala: CPF, CNPJ (inclusive alfanumérico), nomes com a distribuição real do
 IBGE, endereços do CNEFE, telefones, e-mails, textos e mais. Os geradores são kernels C++ que escrevem direto na
 memória do Polars (Arrow `string_view`), sem passar string por string pelo Python.
