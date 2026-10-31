@@ -7,13 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
 from .._native import lib, ptr
 from .views import INLINE_MAX
 
-__all__ = ["Vocabulary", "alias_table", "check_weights"]
+__all__ = ["ViewTable", "Vocabulary", "alias_table", "check_weights"]
 
 
 def check_weights(weights: Sequence[float] | np.ndarray, k: int | None = None) -> np.ndarray:
@@ -92,3 +93,40 @@ class Vocabulary:
     def slice(self, start: int, stop: int) -> Vocabulary:
         """Sub-vocabulário (as views continuam apontando para o mesmo ``data``)."""
         return Vocabulary(self.strings[start:stop], self.views[start:stop], self.data)
+
+
+@dataclass(frozen=True, eq=False)
+class ViewTable:
+    """Strings como views (``views`` (k, 4) uint32) + todos os buffers de texto a que elas apontam (``datas``, na ordem
+    do índice de buffer da view). Como `Vocabulary`, mas sem a lista de strings em Python: serve para tabelas grandes
+    (milhões de nomes de rua) vindas direto de uma Series do Polars, sem copiar o texto. ``owner`` mantém vivos os
+    buffers originais."""
+
+    views: np.ndarray
+    datas: tuple[np.ndarray, ...]
+    owner: object = None
+
+    def __len__(self) -> int:
+        return len(self.views)
+
+    @classmethod
+    def from_strings(cls, strings: Sequence[str]) -> ViewTable:
+        v = Vocabulary.from_strings(strings)
+        return cls(v.views, () if v.data is None else (v.data,), v)
+
+    @classmethod
+    def from_series(cls, s: Any) -> ViewTable:
+        """Series String sem nulos -> views e buffers dela mesma (sem copiar); se o Polars não entregar como
+        ``string_view`` de um pedaço só, monta pelas strings (lento, mas correto)."""
+        from .arrow import string_view_buffers  # noqa: PLC0415 (arrow importa polars/pyarrow)
+
+        if s.null_count():
+            raise ValueError("a tabela de nomes não pode ter nulos")
+        got = string_view_buffers(s.rechunk())
+        if got is None:
+            return cls.from_strings(s.to_list())
+        views, _, _, arr = got
+        datas = tuple(np.frombuffer(b, np.uint8) for b in arr.buffers()[2:] if b is not None)  # type: ignore[attr-defined]
+        views = np.ascontiguousarray(views)
+        views.setflags(write=False)
+        return cls(views, datas, arr)

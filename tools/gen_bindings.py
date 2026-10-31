@@ -17,9 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CPP = ROOT / "cpp"
 HEADER = CPP / "datagen.h"
 SIGS = ROOT / "src" / "nini_datagen" / "_signatures.py"
-ABI_VERSION = 3
+ABI_VERSION = 7
 
-C_TYPES = {"u64": "uint64_t", "u32": "uint32_t", "u16": "uint16_t", "u8": "uint8_t", "i64": "int64_t"}
+C_TYPES = {"u64": "uint64_t", "u32": "uint32_t", "u16": "uint16_t", "u8": "uint8_t", "i64": "int64_t", "i32": "int32_t"}
 CTYPES = {
     "int": "c_int",
     "uint64_t": "c_uint64",
@@ -27,6 +27,7 @@ CTYPES = {
     "uint16_t": "c_uint16",
     "uint8_t": "c_uint8",
     "int64_t": "c_int64",
+    "int32_t": "c_int32",
     "double": "c_double",
     "float": "c_float",
 }

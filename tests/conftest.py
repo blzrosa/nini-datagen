@@ -35,6 +35,12 @@ def u8(n: int) -> np.ndarray:
     return np.zeros(n, np.uint8)
 
 
+if getattr(__import__("polars"), "IS_FAKE", False):  # sem o Polars de verdade não dá para ler o CNEFE em Parquet
+    from .address_fixture import install
+
+    install()
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--record-golden",

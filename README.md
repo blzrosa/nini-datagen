@@ -45,8 +45,53 @@ g.integer(1000, hihg=65)  # ValidationError: Extra inputs are not permitted
 | `age` | `AgeConfig(low, high, weights)` | Int32 |
 | `first_name`, `last_name` | `FirstNameConfig(sex)`, `LastNameConfig()` | String |
 | `full_name` | `FullNameConfig(sex, compound, two_surnames)` | String |
+| `cpf` | `CPFConfig(formatted, unique)` | String |
+| `cnpj` | `CNPJConfig(alphanumeric, branch, formatted, unique)` | String |
+| `pis`, `voter_id`, `rg` | `PISConfig(formatted)`, `VoterIDConfig(formatted)`, `RGConfig(formatted)` | String |
+| `cnh`, `iban`, `ean13` | `CNHConfig()`, `IBANConfig()`, `EAN13Config()` | String |
+| `license_plate` | `LicensePlateConfig(style)` (`"mercosul"` ou `"old"`) | String |
+| `credit_card` | `CreditCardConfig(brand, formatted)` | String |
+| `uuid`, `ipv6`, `mac`, `url` | `UUIDConfig()`, `IPv6Config()`, `MACConfig()`, `URLConfig()` | String |
+| `ipv4` | `IPv4Config(private)` | String |
+| `phone` | `PhoneConfig(style, mobile, uf)` | String |
+| `email`, `username` | `EmailConfig(domains, domain_weights, style_weights)`, `UsernameConfig(style_weights)` | String |
+| `company`, `occupation` | `CompanyConfig()`, `OccupationConfig(zipf)` | String |
+| `vehicle` | `VehicleConfig(year_low, year_high)` | Struct `{brand, model, year}` |
+| `cep` | `CepConfig(formatted, uf, source)` | String |
+| `address` | `AddressConfig(uf, complement, phone, coords, full, source)` | Struct `{street, number, complement, neighborhood, city, state, cep, ...}` |
+| `city`, `state` | `CityConfig(uf, with_state)`, `StateConfig(weighted)` | String |
+| `sentence`, `paragraph` | `SentenceConfig(theme, templates, slots)`, `ParagraphConfig(..., sentences)` | String |
 
 Todos aceitam `name` (nome da coluna) e `null_fraction` (fração de nulos).
+
+Os documentos saem com dígitos verificadores corretos (não são documentos reais de ninguém), e `dg.validators` confere
+textos de qualquer origem:
+
+```python
+g.cpf(1_000_000, unique=True)  # sem repetição (até 10^9)
+g.cnpj(10, alphanumeric=True, formatted=True)  # "HI.EJT.HBE/0001-69", o formato novo da Receita
+dg.validators.cpf("529.982.247-25")  # True
+```
+
+Frases saem de uma gramática com concordância (temas `atendimento`, `saude`, `entrega`, `avaliacao`, `cadastro` ou
+`geral`), ou de modelos próprios:
+
+```python
+g.sentence(3, theme="saude")  # "Reembolso de R$ 964,22 liberado para pagamento."
+g.paragraph(3, sentences=(2, 4))
+g.sentence(3, templates=["Pedido {cod} enviado {prazo}.", ("Sem observações.", 3)], slots={"cod": ["{d}{d}{d}"]})
+g.vehicle(5).struct.unnest()  # colunas brand, model, year
+```
+
+Endereços são reais, do CNEFE do IBGE (Censo 2022): rua, bairro, cidade, UF e CEP existem juntos, sorteados pelo
+número de endereços. O pacote traz uma base leve (1% dos endereços de cada município, todos os 5.570 municípios); a
+completa (~55 MB, com a faixa real de números de cada rua) é baixada uma vez e fica em cache:
+
+```python
+g.address(5, full=True).struct.unnest()  # street, number, complement, neighborhood, city, state, cep, full
+g.cep(5, uf="SP")
+dg.datasets.download("cnefe")  # depois disso, source="auto" usa a base completa
+```
 
 ## Reprodutibilidade
 

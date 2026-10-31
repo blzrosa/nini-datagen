@@ -74,6 +74,23 @@ def test_cnpj_unique_mode(lib, state, P):
     lib.dg_cnpj_gen(P(state), 10, NO_TP, 1, 0, 1, 123, 977, M, P(V), P(D))
     rows = decode(V, D)
     assert len(set(rows)) == M
+    # a mesma chave a partir da linha 123 + 10 dá as mesmas linhas deslocadas (só depende da linha global)
+    V2, D2 = empty_views(M - 10), np.zeros(M * 64 + 64, np.uint8)
+    lib.dg_cnpj_gen(P(state), 10, NO_TP, 1, 0, 1, 133, 977, M - 10, P(V2), P(D2))
+    assert decode(V2, D2) == rows[10:]
+
+
+def test_cpf_perm_is_a_permutation(lib, P):
+    """Num espaço pequeno dá para conferir a bijeção inteira: perm de [0, 10^9) restrita aos primeiros milhões é
+    injetiva, e começar no meio dá as mesmas linhas."""
+    m = 1 << 20
+    V, D = empty_views(m), np.zeros(m * 16 + 64, np.uint8)
+    lib.dg_cpf_perm(42, 0, m, 0, P(V), P(D))
+    rows = decode(V, D)
+    assert len(set(rows)) == m
+    V2, D2 = empty_views(1000), np.zeros(1000 * 16 + 64, np.uint8)
+    lib.dg_cpf_perm(42, 5000, 1000, 0, P(V2), P(D2))
+    assert decode(V2, D2) == rows[5000:6000]
 
 
 def test_pis(lib, state, P):

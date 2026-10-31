@@ -17,7 +17,7 @@ import numpy as np
 
 from .._native import lib, ptr
 
-__all__ = ["Seed", "block_states", "new_seed", "seed_state", "stream_key"]
+__all__ = ["Seed", "block_states", "new_seed", "seed_state", "stream_key", "stream_words"]
 
 Seed = int | None
 
@@ -61,3 +61,14 @@ def block_states(seed: int, stream: str, count: int, first: int = 0) -> np.ndarr
         base = seed_state(seed, stream)
         lib().dg_xoshiro_streams(ptr(base), first, count, ptr(out))
     return out
+
+
+def stream_words(seed: int | np.integer, stream: str, count: int) -> list[int]:
+    """``count`` inteiros de 64 bits derivados de (semente, fluxo) por blake2b: para parâmetros sorteados uma vez por
+    coluna (ex.: o passo da sequência sem repetição de ``cpf(unique=True)``). Estáveis em qualquer máquina e versão."""
+    seed = _check_seed(seed)
+    key = seed.to_bytes((seed.bit_length() + 8) // 8, "little") + stream.encode("utf-8")
+    return [
+        int.from_bytes(hashlib.blake2b(key + i.to_bytes(4, "little"), digest_size=8).digest(), "little")
+        for i in range(count)
+    ]

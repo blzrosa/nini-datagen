@@ -14,20 +14,47 @@ from .generator import DataGen
 from .locales import Locale
 
 __all__ = [
+    "address",
     "age",
     "boolean",
+    "cep",
     "choice",
+    "city",
+    "cnh",
+    "cnpj",
+    "company",
+    "cpf",
+    "credit_card",
     "date",
     "datetime",
+    "ean13",
+    "email",
     "first_name",
     "full_name",
     "generate",
+    "iban",
     "integer",
+    "ipv4",
+    "ipv6",
     "last_name",
+    "license_plate",
     "lognormal",
+    "mac",
     "normal",
+    "occupation",
+    "paragraph",
+    "phone",
+    "pis",
+    "rg",
+    "sentence",
     "sex",
+    "state",
     "uniform",
+    "url",
+    "username",
+    "uuid",
+    "vehicle",
+    "voter_id",
 ]
 
 
@@ -77,3 +104,30 @@ age = _shortcut("age", DataGen.age.__doc__ or "")
 first_name = _shortcut("first_name", DataGen.first_name.__doc__ or "")
 last_name = _shortcut("last_name", DataGen.last_name.__doc__ or "")
 full_name = _shortcut("full_name", DataGen.full_name.__doc__ or "")
+cpf = _shortcut("cpf", DataGen.cpf.__doc__ or "")
+cnpj = _shortcut("cnpj", DataGen.cnpj.__doc__ or "")
+pis = _shortcut("pis", DataGen.pis.__doc__ or "")
+voter_id = _shortcut("voter_id", DataGen.voter_id.__doc__ or "")
+cnh = _shortcut("cnh", DataGen.cnh.__doc__ or "")
+rg = _shortcut("rg", DataGen.rg.__doc__ or "")
+license_plate = _shortcut("license_plate", DataGen.license_plate.__doc__ or "")
+credit_card = _shortcut("credit_card", DataGen.credit_card.__doc__ or "")
+iban = _shortcut("iban", DataGen.iban.__doc__ or "")
+ean13 = _shortcut("ean13", DataGen.ean13.__doc__ or "")
+uuid = _shortcut("uuid", DataGen.uuid.__doc__ or "")
+ipv4 = _shortcut("ipv4", DataGen.ipv4.__doc__ or "")
+ipv6 = _shortcut("ipv6", DataGen.ipv6.__doc__ or "")
+mac = _shortcut("mac", DataGen.mac.__doc__ or "")
+url = _shortcut("url", DataGen.url.__doc__ or "")
+phone = _shortcut("phone", DataGen.phone.__doc__ or "")
+email = _shortcut("email", DataGen.email.__doc__ or "")
+username = _shortcut("username", DataGen.username.__doc__ or "")
+company = _shortcut("company", DataGen.company.__doc__ or "")
+vehicle = _shortcut("vehicle", DataGen.vehicle.__doc__ or "")
+occupation = _shortcut("occupation", DataGen.occupation.__doc__ or "")
+sentence = _shortcut("sentence", DataGen.sentence.__doc__ or "")
+paragraph = _shortcut("paragraph", DataGen.paragraph.__doc__ or "")
+cep = _shortcut("cep", DataGen.cep.__doc__ or "")
+address = _shortcut("address", DataGen.address.__doc__ or "")
+city = _shortcut("city", DataGen.city.__doc__ or "")
+state = _shortcut("state", DataGen.state.__doc__ or "")

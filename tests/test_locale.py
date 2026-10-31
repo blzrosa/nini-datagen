@@ -76,3 +76,26 @@ def test_compound_prefixes_exist_with_right_sex():
     assert "João" in mas
     assert all(d.female[pos[x]] > 0 for x in fem)
     assert all(d.male[pos[x]] > 0 for x in mas)
+
+
+def test_states_population_and_area_codes():
+    states = get_locale().states()
+    assert len(states) == 27
+    assert sum(s.population for s in states.values()) == 203_080_756  # Censo 2022 (IBGE)
+    codes = [d for s in states.values() for d in s.area_codes]
+    assert len(codes) == len(set(codes)) == 67  # os 67 DDDs, cada um numa UF só
+    assert all(11 <= d <= 99 and d % 10 != 0 for d in codes)
+
+
+def test_small_lists():
+    loc = get_locale()
+    sectors, brands, types = loc.company_parts()
+    assert len(set(sectors)) == len(sectors)
+    assert len(set(brands)) == len(brands)
+    assert types.names[0] == "LTDA"
+    v = loc.vehicles()
+    assert len(v.models) == len(v.brands.names)
+    assert len(set(loc.occupations())) == len(loc.occupations())
+    common, themes = loc.grammar()
+    assert all("frase" in t for t in themes.values())
+    assert {"d", "valor", "tempo"} <= set(common)

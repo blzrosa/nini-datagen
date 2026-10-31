@@ -17,11 +17,15 @@ from .helpers import CASES, case
 
 SEED = 20_261_030
 N = 100_000
+LITE_KINDS = {"cep", "address"}
 
 
 def _single(name: str) -> Callable[[], pl.DataFrame]:
     def build() -> pl.DataFrame:
         kind, kw = case(name)
+        if kind in LITE_KINDS:
+            # fixa a base embutida: o gabarito sai igual com ou sem a base completa no cache (CI não a tem)
+            kw = {"source": "lite", **kw}
         g = dg.DataGen(seed=SEED)
         return pl.DataFrame([g.generate(kind, N, **kw), g.generate(kind, N, name="com_nulos", null_fraction=0.1, **kw)])
 
@@ -33,6 +37,10 @@ def _people() -> pl.DataFrame:
     sx = g.sex(N)
     return pl.DataFrame([sx, g.first_name(N, sex=sx), g.full_name(N, sex=sx), g.age(N)])
 
+
+# gabaritos ainda não gravados (esperando a conferência das amostras): sem o arquivo o teste é pulado, e o
+# --record-golden também não grava estes. Depois de conferir, tire da lista e grave.
+PENDING: set[str] = set()
 
 GOLDEN_CASES: dict[str, Callable[[], pl.DataFrame]] = {name: _single(name) for name in sorted(CASES)}
 GOLDEN_CASES["people"] = _people

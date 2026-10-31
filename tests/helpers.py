@@ -32,6 +32,41 @@ CASES: dict[str, dict[str, Any]] = {
     "first_name_f": {"kind": "first_name", "sex": "F"},
     "last_name": {},
     "full_name": {},
+    "cpf": {},
+    "cpf_unique": {"kind": "cpf", "formatted": True, "unique": True},
+    "cnpj": {},
+    "cnpj_alnum": {"kind": "cnpj", "alphanumeric": True, "formatted": True, "unique": True},
+    "cnpj_branches": {"kind": "cnpj", "branch": None},
+    "pis": {},
+    "voter_id": {},
+    "cnh": {},
+    "rg": {},
+    "license_plate": {},
+    "credit_card": {},
+    "iban": {},
+    "ean13": {},
+    "uuid": {},
+    "ipv4": {},
+    "ipv4_private": {"kind": "ipv4", "private": True},
+    "ipv6": {},
+    "mac": {},
+    "url": {},
+    "phone": {},
+    "phone_masked": {"kind": "phone", "style": "masked", "uf": "SP"},
+    "email": {},
+    "username": {},
+    "company": {},
+    "vehicle": {},
+    "occupation": {},
+    "sentence": {},
+    "sentence_theme": {"kind": "sentence", "theme": "saude"},
+    "paragraph": {},
+    "cep": {},
+    "cep_plain_uf": {"kind": "cep", "formatted": False, "uf": ["SP", "RJ"]},
+    "address": {},
+    "address_all": {"kind": "address", "phone": True, "coords": True, "full": True},
+    "city": {},
+    "state": {},
 }
 
 DTYPES = {
@@ -55,6 +90,8 @@ DTYPES = {
     "last_name": pl.String,
     "full_name": pl.String,
 }
+DTYPES["vehicle"] = DTYPES["address"] = DTYPES["address_all"] = pl.Struct
+DTYPES.update({k: pl.String for k in CASES if k not in DTYPES})
 
 
 def case(name: str) -> tuple[str, dict[str, Any]]:

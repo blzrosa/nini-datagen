@@ -4,9 +4,20 @@ from __future__ import annotations
 
 import threading
 
-from .base import FirstNames, Locale, WeightedNames
+from .base import AddressBase, FirstNames, Grammar, Locale, Municipalities, State, Vehicles, WeightedNames
 
-__all__ = ["FirstNames", "Locale", "WeightedNames", "available", "get_locale"]
+__all__ = [
+    "AddressBase",
+    "FirstNames",
+    "Grammar",
+    "Locale",
+    "Municipalities",
+    "State",
+    "Vehicles",
+    "WeightedNames",
+    "available",
+    "get_locale",
+]
 
 _lock = threading.Lock()
 _instances: dict[str, Locale] = {}

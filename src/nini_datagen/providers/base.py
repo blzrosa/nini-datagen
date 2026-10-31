@@ -27,9 +27,20 @@ from ..config.base import BaseConfig
 from ..core.arrow import primitive_to_series
 from ..core.blocks import Block, map_blocks, split
 from ..core.rng import block_states
+from ..core.views import trim
 from ..locales import Locale
 
-__all__ = ["ArrayJob", "BitsJob", "Context", "Job", "Provider", "Run", "probability_threshold", "validity_bits"]
+__all__ = [
+    "ArrayJob",
+    "BitsJob",
+    "Context",
+    "Job",
+    "Provider",
+    "Run",
+    "TextJob",
+    "probability_threshold",
+    "validity_bits",
+]
 
 C = TypeVar("C", bound=BaseConfig)
 
@@ -179,6 +190,45 @@ class ArrayJob(Job):
 
     def finish(self, name: str, validity: np.ndarray | None) -> pl.Series:
         return primitive_to_series(self.out, name, validity, self.typ)
+
+
+# (ponteiro do estado, linhas, ponteiro das views, ponteiro do texto, primeira linha global do bloco)
+TextKernel = Callable[[int, int, int, int, int], None]
+
+
+class TextJob(Job):
+    """Texto que o kernel escreve sozinho: views da coluna inteira + um buffer de texto por bloco.
+
+    ``stride``: bytes reservados por linha no buffer do bloco (o kernel escreve o texto longo da linha ``r`` em
+    ``r * stride`` e aponta a view para lá); 0 quando o texto sempre cabe na view (até 12 bytes) e não há buffer.
+    O kernel recebe também a primeira linha global do bloco (usada pelas sequências sem repetição).
+    Os kernels marcam o buffer 0; aqui cada bloco passa a apontar para o seu (índice de buffer = índice do bloco).
+    """
+
+    _DUMMY = np.zeros(64, np.uint8)
+
+    def __init__(self, n: int, stride: int, kernel: TextKernel, n_blocks: int, *, packed: bool = False,
+                 slack: int = 0) -> None:  # fmt: skip
+        self.views = np.empty((n, 4), np.uint32)
+        self.stride = stride
+        self.kernel = kernel
+        self.packed = packed  # o kernel escreve os textos em sequência (stride = limite por linha): apara no fim
+        self.slack = slack  # bytes extras no fim do buffer (kernels que copiam blocos fixos além do texto)
+        self.datas: list[np.ndarray] = [np.empty(0, np.uint8)] * n_blocks
+
+    def fill(self, block: Block, state: np.ndarray) -> None:
+        seg = self.views[block.start : block.start + block.rows]
+        data = np.empty(block.rows * self.stride + self.slack, np.uint8) if self.stride else self._DUMMY
+        self.kernel(ptr(state), block.rows, ptr(seg), ptr(data), block.start)
+        if self.stride:
+            # uma passada no C++: aponta as views longas para o buffer deste bloco e mede os bytes usados
+            used = lib().dg_views_used(ptr(seg), block.rows, block.index)
+            self.datas[block.index] = trim(data, used) if self.packed or self.slack else data
+
+    def finish(self, name: str, validity: np.ndarray | None) -> pl.Series:
+        from ..core.arrow import views_to_series  # noqa: PLC0415
+
+        return views_to_series(self.views, self.datas if self.stride else None, name, validity)
 
 
 class BitsJob(Job):

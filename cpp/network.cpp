@@ -76,29 +76,39 @@ static void ipv4_run(u64* st, i64 m, u32* V, u8* D) {
 DG_EXPORT void dg_ipv4_views(u64* st, int priv, i64 m, u32* V, u8* D) { if (priv) ipv4_run<true>(st, m, V, D); else ipv4_run<false>(st, m, V, D); }
 
 // url: https://[www.]palavra[-palavra].tld[/seg[/seg[/seg]]][?pagina=N]
-//  tabelas: palavras ASCII (wch/wln/wtab), TLDs (tch/tln/ttab). Probabilidades fixas razoaveis.
-DG_EXPORT void dg_url_views(u64* st, u32 k, const u8* wch, const u8* wln, const u64* wtab, u32 kt, const u8* tch, const u8* tln,
+//  palavras ASCII sorteadas uniformemente (wch/wln: 32 bytes por palavra), TLDs com peso (tch/tln/ttab, alias).
+//  Números por linha: x (formato), y (2 palavras do domínio), z (TLD), e só se preciso u (2 trechos) e w (3º trecho e
+//  página); cada palavra usa 32 bits (índice = (32 bits * k) >> 32). Probabilidades fixas razoáveis.
+DG_EXPORT void dg_url_views(u64* st, u32 k, const u8* wch, const u8* wln, u32 kt, const u8* tch, const u8* tln,
                       const u64* ttab, i64 m, u32* V, u8* D) {
   init_cpf();
   u64 s0 = st[0], s1 = st[1], s2 = st[2], s3 = st[3];
   auto next = [&]() -> u64 { u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17; s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45); return x; };
-  auto pick = [&](u32 kk, const u64* tab, u64 y) -> u32 { u32 i = (u32)(((y >> 32) * (u64)kk) >> 32); u64 e = tab[i];
-    u32 al = (u32)(e >> 32), mk = 0u - (u32)((u32)y < (u32)e); return al ^ ((i ^ al) & mk); };
+  auto word = [&](u32 h) -> u32 { return (u32)(((u64)h * k) >> 32); };
   u32 off = 0;
   for (i64 r = 0; r < m; r++) {
-    u64 x = next();
+    u64 x = next(), y = next(), z = next();
     u32 lo = (u32)x, hi = (u32)(x >> 32);
     bool www = (lo >> 24) < 154u;              // ~60% com www.
-    bool two = ((lo >> 8) & 255u) < 31u;        // ~12% de dominio com dois termos ("minha-loja")
+    bool two = ((lo >> 8) & 255u) < 31u;        // ~12% de domínio com dois termos ("minha-loja")
     u32 segs = (hi < 0x40000000u) ? 0 : (hi < 0xA0000000u) ? 1 : (hi < 0xE0000000u) ? 2 : 3;
     bool query = ((lo >> 16) & 255u) < 51u;    // ~20% com ?pagina=
     u8* start = D + off; u8* o = start;
     memcpy(o, "https://www.", 12); o += www ? 12 : 8;
-    u32 w1 = pick(k, wtab, next()); memcpy(o, wch + 32 * (size_t)w1, 24); o += wln[w1];
-    if (two) { *o++ = '-'; u32 w2 = pick(k, wtab, next()); memcpy(o, wch + 32 * (size_t)w2, 24); o += wln[w2]; }
-    *o++ = '.'; u32 t = pick(kt, ttab, next()); memcpy(o, tch + 32 * (size_t)t, 24); o += tln[t];
-    for (u32 sgm = 0; sgm < segs; sgm++) { *o++ = '/'; u32 w = pick(k, wtab, next()); memcpy(o, wch + 32 * (size_t)w, 24); o += wln[w]; }
-    if (query) { if (segs == 0) *o++ = '/'; memcpy(o, "?pagina=", 8); o += 8; u32 pg = 1 + (u32)(((next() >> 32) * 99ull) >> 32); u32 dd = T4[pg] >> (pg < 10 ? 24 : 16); int nd = pg < 10 ? 1 : 2; memcpy(o, &dd, 4); o += nd; }
+    u32 w1 = word((u32)y); memcpy(o, wch + 32 * (size_t)w1, 24); o += wln[w1];
+    u32 w2 = word((u32)(y >> 32)); *o = '-'; memcpy(o + 1, wch + 32 * (size_t)w2, 24); o += two ? 1 + wln[w2] : 0;
+    *o++ = '.'; u32 t = alias_pick(kt, ttab, z); memcpy(o, tch + 32 * (size_t)t, 24); o += tln[t];
+    if (segs | (u32)query) {
+      u64 u = next(), w = next();
+      u32 sw[3] = {word((u32)u), word((u32)(u >> 32)), word((u32)w)};
+      for (u32 sg = 0; sg < segs; sg++) { *o++ = '/'; memcpy(o, wch + 32 * (size_t)sw[sg], 24); o += wln[sw[sg]]; }
+      if (query) {
+        if (segs == 0) *o++ = '/';
+        memcpy(o, "?pagina=", 8); o += 8;
+        u32 pg = 1 + (u32)(((w >> 32) * 99ull) >> 32);   // 1..99
+        u32 dd = T4[pg] >> (pg < 10 ? 24 : 16); memcpy(o, &dd, 4); o += pg < 10 ? 1 : 2;
+      }
+    }
     u32 n = (u32)(o - start);
     u32* v = V + 4 * r; v[0] = n; memcpy(&v[1], start, 4); v[2] = 0; v[3] = off;   // sempre > 12 bytes
     off += n;

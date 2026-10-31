@@ -19,7 +19,7 @@ pl = pytest.importorskip("polars")
 if getattr(pl, "IS_FAKE", False):
     pytest.skip("precisa do Polars de verdade", allow_module_level=True)
 
-from .golden_cases import GOLDEN_CASES, build  # noqa: E402
+from .golden_cases import GOLDEN_CASES, PENDING, build  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
 
@@ -46,12 +46,17 @@ def _compare(expected: Path, actual: Path) -> Any:
 
 @pytest.mark.parametrize("name", sorted(GOLDEN_CASES))
 def test_golden(name: str, request: pytest.FixtureRequest, tmp_path: Path) -> None:
-    df = build(name)
     path = GOLDEN / f"{name}.parquet"
-    if request.config.getoption("--record-golden"):
+    recording = request.config.getoption("--record-golden")
+    if recording and name in PENDING:
+        pytest.skip(f"{name} está em PENDING (golden_cases.py): conferir as amostras antes de gravar")
+    df = build(name)
+    if recording:
         GOLDEN.mkdir(exist_ok=True)
         df.write_parquet(path, compression="zstd", compression_level=19, statistics=False)
         pytest.skip(f"gabarito gravado: {path.name}")
+    if not path.exists() and name in PENDING:
+        pytest.skip(f"gabarito {path.name} ainda não gravado (aguardando a conferência das amostras)")
     if not path.exists():
         pytest.fail(f"gabarito {path.name} não existe; grave com `uv run pytest tests/test_golden.py --record-golden`")
 

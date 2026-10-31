@@ -38,6 +38,22 @@ u16 H2[256];
 static bool h2_ready = false;
 void init_h2() { if (h2_ready) return; for (int i = 0; i < 256; i++) H2[i] = (u16)((u8)HEXD[i >> 4] | ((u16)(u8)HEXD[i & 15] << 8)); h2_ready = true; }
 
+// Views longas (len > 12) de um bloco: devolve os bytes usados no buffer de texto (maior deslocamento + len) e, com
+// buf >= 0, grava buf como índice do buffer (os kernels escrevem 0; cada bloco tem o seu buffer). Uma passada só; em
+// numpy (máscara + atribuição) isto custava ~7 ns por linha, mais que muitos kernels.
+DG_EXPORT i64 dg_views_used(u32* V, i64 m, int buf) {
+  u64 used = 0;
+  for (i64 r = 0; r < m; r++) {
+    u32* v = V + 4 * r;
+    if (v[0] > 12) {
+      u64 end = (u64)v[3] + v[0];
+      used = end > used ? end : used;
+      if (buf >= 0) v[2] = (u32)buf;
+    }
+  }
+  return (i64)used;
+}
+
 // Inicializa TODAS as tabelas de uma vez. O Python chama isto ao carregar a biblioteca, ANTES de usar threads: as
 // inicializações preguiçosas dentro dos kernels seriam uma corrida de dados entre threads (e, em CPUs com memória
 // fracamente ordenada, outra thread poderia ver a flag "pronto" antes das tabelas).

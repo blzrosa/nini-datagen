@@ -2,6 +2,7 @@
 // Parte do nini-datagen (kernels C++ com ABI em C; veja datagen.h).
 #include "common.hpp"
 #include <cmath>
+#include <type_traits>
 
 static inline void row_plain(u32* v, u32 b) {
   u32 q = b / 10, d8 = b - q * 10, a = q / 10000, c = q - a * 10000;
@@ -25,10 +26,56 @@ static inline void fill(i64 m, int formatted, u32* V, u32* D, BaseGen next) {
 DG_EXPORT void dg_cpf_from_base(const u32* base, i64 m, int formatted, u32* V, u32* D) {
   const u32* p = base; fill(m, formatted, V, D, [&]() { return *p++; });
 }
-// progressão afim: base_j = (start + a*j) mod 1e9
-DG_EXPORT void dg_cpf_affine(u32 a, u32 start, i64 m, int formatted, u32* V, u32* D) {
-  u32 x = start;
-  fill(m, formatted, V, D, [&]() { u32 b = x; x += a; x = std::min(x, x - MODB); return b; });
+// ===================================================================== permutação com chave (valores sem repetição)
+// Cifra de Feistel em base B: x = L*B + R (L, R < B), 6 rodadas de (L, R) <- (R, (L + F(R)) mod B), cada F com sua
+// subchave tirada da chave. É uma bijeção de [0, B^2) nela mesma; a linha global i vira perm(i), então valores sem
+// repetição, embaralhados e estáveis por prefixo (só dependem de i e da chave). Para um espaço N < B^2, "cycle walking":
+// reaplica a cifra até cair em [0, N), o que continua sendo bijeção em [0, N) (com B^2 ~ N, quase nunca repete).
+static inline u64 mix64(u64 z) {
+  z ^= z >> 30; z *= 0xBF58476D1CE4E5B9ull; z ^= z >> 27; z *= 0x94D049BB133111EBull; return z ^ (z >> 31);
+}
+// rodada: finalizador do splitmix64 sobre R ^ subchave, levado a [0, B) pela mulhi. Não é criptografia, mas uma rodada
+// mais leve (1 multiplicação) deixava estrutura visível (diferenças entre vizinhos repetidas, pares de dígitos com
+// qui-quadrado alto); com o splitmix as estatísticas ficam iguais às de uma amostra sem reposição de verdade.
+static inline u64 fround(u64 R, u64 k, u64 B) { return mulhi64(mix64(R ^ k), B); }
+struct Feistel {
+  u64 B, k[6];
+  Feistel(u64 base, u64 key) : B(base) { for (int r = 0; r < 6; r++) k[r] = mix64(key + (u64)(r + 1) * 0x9E3779B97F4A7C15ull); }
+  inline u64 enc(u64 x) const {
+    u64 L = x / B, R = x - L * B;
+    for (int r = 0; r < 6; r++) { u64 t = L + fround(R, k[r], B); if (t >= B) t -= B; L = R; R = t; }
+    return L * B + R;
+  }
+  inline u64 perm(u64 x, u64 n) const { x = enc(x); while (x >= n) x = enc(x); return x; }
+  // W linhas consecutivas de uma vez: as cadeias de multiplicação de cada linha são independentes, então a CPU as
+  // sobrepõe (uma linha sozinha fica esperando a latência de ~18 multiplicações em série)
+  static constexpr int W = 16;
+  inline void enc_batch(u64 first, u64* out) const {
+    u64 L[W], R[W];
+    u64 l = first / B, rr = first - l * B;   // uma divisão por lote: as linhas seguintes só somam 1 a (L, R)
+    for (int j = 0; j < W; j++) { L[j] = l; R[j] = rr; if (++rr == B) { rr = 0; l++; } }
+    for (int r = 0; r < 6; r++)
+      for (int j = 0; j < W; j++) { u64 t = L[j] + fround(R[j], k[r], B); t -= (t >= B) ? B : 0; L[j] = R[j]; R[j] = t; }
+    for (int j = 0; j < W; j++) out[j] = L[j] * B + R[j];
+  }
+  // perm(first + j) para j < count (cycle walking só nas raras linhas que caem fora de [0, n))
+  inline void perm_run(u64 first, i64 count, u64 n, u64* out) const {
+    i64 j = 0;
+    for (; j + W <= count; j += W) enc_batch(first + (u64)j, out + j);
+    for (; j < count; j++) out[j] = enc(first + (u64)j);
+    for (i64 q = 0; q < count; q++) while (out[q] >= n) out[q] = enc(out[q]);
+  }
+};
+static const u64 CPF_B = 31623;   // 31623^2 = 1.000.014.129 >= 10^9
+
+// sem repetição: a linha r do bloco é a linha global start + r; base = perm(start + r) em [0, 10^9)
+DG_EXPORT void dg_cpf_perm(u64 key, u64 start, i64 m, int formatted, u32* V, u32* D) {
+  Feistel f(CPF_B, key);
+  u64 buf[256]; i64 done = 0, have = 0, pos = 0;
+  fill(m, formatted, V, D, [&]() {
+    if (pos == have) { have = std::min<i64>(256, m - done); f.perm_run(start + (u64)done, have, MODB, buf); done += have; pos = 0; }
+    return (u32)buf[pos++];
+  });
 }
 // i.i.d.: xoshiro256++ (estado de 4 x uint64, atualizado no lugar), 2 bases por uint64 ((x32 * 1e9) >> 32)
 DG_EXPORT void dg_cpf_random(u64* s, i64 m, int formatted, u32* V, u32* D) {
@@ -102,16 +149,19 @@ static inline void cn_emit(u32* v, u8* d, u32 r, const u32* pi) {
 
 // tp4/tp5: indices de par (0..K*K-1) dos grupos 4 e 5 (ordem fixa, FIXED=true); com FIXED=false a ordem e sorteada.
 template <int K, bool UNIQ, bool FMT, bool FIXED>
-static void cn_run(u64* s, u32 tp4, u32 tp5, u64 x0, u64 a, i64 m, u32* V, u8* D) {
+// UNIQ: linha r = perm(start + r) na cifra de Feistel de base K2^(NP/2) (o espaço K2^NP é exatamente B^2).
+static void cn_run(u64* s, u32 tp4, u32 tp5, u64 start, u64 key, i64 m, u32* V, u8* D) {
   constexpr u32 K2 = K * K;
   constexpr int NP = FIXED ? 4 : 6;
-  constexpr u64 M4 = (u64)K2 * K2 * K2 * K2;
-  constexpr u64 M = FIXED ? M4 : M4 * K2 * K2;
-  u64 s0 = s[0], s1 = s[1], s2 = s[2], s3 = s[3], x = x0;
+  constexpr u64 B = FIXED ? (u64)K2 * K2 : (u64)K2 * K2 * K2;
+  Feistel f(B, key);
+  u64 s0 = s[0], s1 = s[1], s2 = s[2], s3 = s[3];
   u32 pi[6]; pi[4] = tp4; pi[5] = tp5;
+  u64 buf[256];
   for (i64 r = 0; r < m; r++) {
     if (UNIQ) {
-      u64 y = x; x += a; if (x >= M) x -= M;
+      if ((r & 255) == 0) f.perm_run(start + (u64)r, std::min<i64>(256, m - r), B * B, buf);
+      u64 y = buf[r & 255];
       for (int g = NP - 1; g >= 0; g--) { pi[g] = (u32)(y % K2); y /= K2; }
     } else {
       for (int g = 0; g < NP; g += 2) {
@@ -126,13 +176,14 @@ static void cn_run(u64* s, u32 tp4, u32 tp5, u64 x0, u64 a, i64 m, u32* V, u8* D
   s[0] = s0; s[1] = s1; s[2] = s2; s[3] = s3;
 }
 template <int K, bool U, bool F>
-static void cn_disp(u64* s, u32 tp4, u32 tp5, u64 x0, u64 a, i64 m, u32* V, u8* D) {
-  if (tp4 != 0xFFFFFFFFu) cn_run<K, U, F, true>(s, tp4, tp5, x0, a, m, V, D);
-  else cn_run<K, U, F, false>(s, tp4, tp5, x0, a, m, V, D);
+static void cn_disp(u64* s, u32 tp4, u32 tp5, u64 start, u64 key, i64 m, u32* V, u8* D) {
+  if (tp4 != 0xFFFFFFFFu) cn_run<K, U, F, true>(s, tp4, tp5, start, key, m, V, D);
+  else cn_run<K, U, F, false>(s, tp4, tp5, start, key, m, V, D);
 }
-DG_EXPORT void dg_cnpj_gen(u64* s, int alpha, u32 tp4, u32 tp5, int formatted, int unique, u64 x0, u64 a, i64 m, u32* V, u8* D) {
+// unique: start = linha global da primeira linha, key = chave da permutação (ignorados sem unique)
+DG_EXPORT void dg_cnpj_gen(u64* s, int alpha, u32 tp4, u32 tp5, int formatted, int unique, u64 start, u64 key, i64 m, u32* V, u8* D) {
   init_cnpj();
-  #define CN_CALL(K, U, F) cn_disp<K, U, F>(s, tp4, tp5, x0, a, m, V, D)
+  #define CN_CALL(K, U, F) cn_disp<K, U, F>(s, tp4, tp5, start, key, m, V, D)
   if (alpha == 36) {
     if (unique) { if (formatted) CN_CALL(36, true, true); else CN_CALL(36, true, false); }
     else        { if (formatted) CN_CALL(36, false, true); else CN_CALL(36, false, false); }
@@ -218,26 +269,33 @@ static void id_run(u64* st, int style, i64 m, u32* V, u8* D, int stride) {
       if (brand == 0) d[0] = '4';
       else if (brand == 1) { d[0] = '5'; d[1] = (u8)('1' + (d[1] - '0') % 5); }
       else { d[0] = '3'; d[1] = (d[1] - '0') & 1 ? '7' : '4'; }
-      int sum = 0;
-      for (int i = 0; i < L - 1; i++) { int t = d[i] - '0'; if (((L - 2 - i) & 1) == 0) { t *= 2; if (t > 9) t -= 9; } sum += t; }
+      // Luhn: dobra os dígitos em posição par contando da direita (sem o DV); tabela em vez de desvio, laço de
+      // tamanho fixo (15 ou 16) para o compilador desenrolar
+      static const u8 DBL[10] = {0, 2, 4, 6, 8, 1, 3, 5, 7, 9};
+      auto luhn = [&](auto len) { constexpr int N = decltype(len)::value; int sum = 0;
+        for (int i = 0; i < N - 1; i++) { int t = d[i] - '0'; sum += ((N - 2 - i) & 1) ? t : DBL[t]; } return sum; };
+      int sum = L == 16 ? luhn(std::integral_constant<int, 16>{}) : luhn(std::integral_constant<int, 15>{});
       d[L - 1] = (u8)('0' + (10 - sum % 10) % 10);
       if (!fmt) { memcpy(o, d, (size_t)L); n = L; }
       else if (L == 16) { for (int k = 0; k < 4; k++) { memcpy(o + 5 * k, d + 4 * k, 4); o[5 * k + 4] = ' '; } n = 19; }
       else { memcpy(o, d, 4); o[4] = ' '; memcpy(o + 5, d + 4, 6); o[11] = ' '; memcpy(o + 12, d + 10, 5); n = 17; }
     } else if (KIND == 12) {   // IBAN do Brasil (29): BR kk banco(8) agencia(5) conta(10) tipo(C|P) titular(1)
+      // DV: 98 - (numero "banco agencia conta tipo titular BR00" com letras -> 2 digitos) mod 97. O numero tem 32
+      // digitos: a(8) b(5) c1(5) c2(5) tipo(2: C=12, P=25) titular(1) "1127" "00"; em vez de percorrer os digitos,
+      // soma cada parte vezes 10^posicao mod 97 (tudo cabe em 64 bits) e tira um modulo so.
       u64 x = next(), y = next(), z = next();
       u32 a = (u32)(((x & 0xFFFFFFFFull) * 100000000ull) >> 32), b = (u32)(((x >> 32) * 100000ull) >> 32);
       u32 c1 = (u32)(((y & 0xFFFFFFFFull) * 100000ull) >> 32), c2 = (u32)(((y >> 32) * 100000ull) >> 32);
       bool poup = (z & 0xFFFF) < 19660;   // ~30% poupanca
-      u8 b8[32]; memcpy(b8, &T4[a / 10000], 4); memcpy(b8 + 4, &T4[a % 10000], 4);
-      memcpy(b8 + 8, &T4[b / 10], 4); b8[12] = (u8)('0' + b % 10);
-      memcpy(b8 + 13, &T4[c1 / 10], 4); b8[17] = (u8)('0' + c1 % 10); memcpy(b8 + 18, &T4[c2 / 10], 4); b8[22] = (u8)('0' + c2 % 10);
-      b8[23] = poup ? '2' : '1'; b8[24] = poup ? '5' : '2'; b8[25] = '1';   // letra C=12 / P=25, titular '1'
-      memcpy(b8 + 26, "1127", 4); b8[30] = '0'; b8[31] = '0';             // "BR" = 1127, check provisorio 00
-      u64 rem = 0; for (int k = 0; k < 32; k += 8) { u64 chunk = 0; for (int j = 0; j < 8; j++) chunk = chunk * 10 + (u64)(b8[k + j] - '0'); rem = (rem * 100000000ull + chunk) % 97ull; }
-      u32 chk = (u32)(98 - rem);
+      // 10^k mod 97 para k = 24, 19, 14, 9, 7, 6
+      const u64 P24 = 75, P19 = 17, P14 = 53, P9 = 34, P7 = 76, P6 = 27;
+      u64 sum = a * P24 + b * P19 + c1 * P14 + c2 * P9 + (poup ? 25u : 12u) * P7 + 1 * P6 + 112700ull;
+      u32 chk = (u32)(98 - sum % 97);
       o[0] = 'B'; o[1] = 'R'; o[2] = (u8)('0' + chk / 10); o[3] = (u8)('0' + chk % 10);
-      memcpy(o + 4, b8, 23); o[27] = poup ? 'P' : 'C'; o[28] = '1'; n = 29;
+      memcpy(o + 4, &T4[a / 10000], 4); memcpy(o + 8, &T4[a % 10000], 4);
+      memcpy(o + 12, &T4[b / 10], 4); o[16] = (u8)('0' + b % 10);
+      memcpy(o + 17, &T4[c1 / 10], 4); o[21] = (u8)('0' + c1 % 10); memcpy(o + 22, &T4[c2 / 10], 4); o[26] = (u8)('0' + c2 % 10);
+      o[27] = poup ? 'P' : 'C'; o[28] = '1'; n = 29;
     } else if (KIND == 13) {   // EAN-13 brasileiro (prefixo 789)
       u64 x = next(); u32 a = (u32)(((x & 0xFFFFFFFFull) * 100000ull) >> 32), b = (u32)(((x >> 32) * 10000ull) >> 32);
       u8 d[13]; d[0] = '7'; d[1] = '8'; d[2] = '9'; memcpy(d + 3, &T4[a / 10], 4); d[7] = (u8)('0' + a % 10); memcpy(d + 8, &T4[b], 4);

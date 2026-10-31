@@ -124,3 +124,111 @@ class DataGen:
     def full_name(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
         """Nome + um ou dois sobrenomes; ``sex`` como em `first_name` (`FullNameConfig`)."""
         return self.generate("full_name", n, config, **kwargs)
+
+    def cpf(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """CPF válido; ``formatted``, ``unique`` (sem repetição) (`CPFConfig`)."""
+        return self.generate("cpf", n, config, **kwargs)
+
+    def cnpj(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """CNPJ válido, numérico ou ``alphanumeric``; ``branch``, ``formatted``, ``unique`` (`CNPJConfig`)."""
+        return self.generate("cnpj", n, config, **kwargs)
+
+    def pis(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """PIS/PASEP/NIS válido (`PISConfig`)."""
+        return self.generate("pis", n, config, **kwargs)
+
+    def voter_id(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Título de eleitor válido (`VoterIDConfig`)."""
+        return self.generate("voter_id", n, config, **kwargs)
+
+    def cnh(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Número de registro da CNH válido (`CNHConfig`)."""
+        return self.generate("cnh", n, config, **kwargs)
+
+    def rg(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """RG no padrão de SP, com DV (`RGConfig`)."""
+        return self.generate("rg", n, config, **kwargs)
+
+    def license_plate(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Placa de veículo, Mercosul ou antiga (`LicensePlateConfig`)."""
+        return self.generate("license_plate", n, config, **kwargs)
+
+    def credit_card(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Número de cartão com dígito de Luhn correto (`CreditCardConfig`)."""
+        return self.generate("credit_card", n, config, **kwargs)
+
+    def iban(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """IBAN do Brasil válido (`IBANConfig`)."""
+        return self.generate("iban", n, config, **kwargs)
+
+    def ean13(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Código de barras EAN-13 brasileiro (`EAN13Config`)."""
+        return self.generate("ean13", n, config, **kwargs)
+
+    def uuid(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """UUID versão 4 (`UUIDConfig`)."""
+        return self.generate("uuid", n, config, **kwargs)
+
+    def ipv4(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Endereço IPv4 público ou ``private`` (`IPv4Config`)."""
+        return self.generate("ipv4", n, config, **kwargs)
+
+    def ipv6(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Endereço IPv6 completo (`IPv6Config`)."""
+        return self.generate("ipv6", n, config, **kwargs)
+
+    def mac(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Endereço MAC unicast (`MACConfig`)."""
+        return self.generate("mac", n, config, **kwargs)
+
+    def url(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """URL plausível (`URLConfig`)."""
+        return self.generate("url", n, config, **kwargs)
+
+    def phone(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Telefone com DDD pela população da UF; ``style``, ``mobile``, ``uf`` (`PhoneConfig`)."""
+        return self.generate("phone", n, config, **kwargs)
+
+    def email(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """E-mail a partir de nome e sobrenome sem acento; ``domains`` (`EmailConfig`)."""
+        return self.generate("email", n, config, **kwargs)
+
+    def username(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Nome de usuário em 8 estilos (`UsernameConfig`)."""
+        return self.generate("username", n, config, **kwargs)
+
+    def company(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Razão social plausível (`CompanyConfig`)."""
+        return self.generate("company", n, config, **kwargs)
+
+    def vehicle(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Struct ``{brand, model, year}`` coerente; ``.struct.unnest()`` separa (`VehicleConfig`)."""
+        return self.generate("vehicle", n, config, **kwargs)
+
+    def occupation(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Profissão (`OccupationConfig`)."""
+        return self.generate("occupation", n, config, **kwargs)
+
+    def sentence(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Uma frase por gramática; ``theme``, ``templates``, ``slots`` (`SentenceConfig`)."""
+        return self.generate("sentence", n, config, **kwargs)
+
+    def paragraph(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Parágrafo de ``sentences=(mín, máx)`` frases (`ParagraphConfig`)."""
+        return self.generate("paragraph", n, config, **kwargs)
+
+    def cep(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """CEP real do CNEFE, pelo número de endereços; ``formatted``, ``uf``, ``source`` (`CepConfig`)."""
+        return self.generate("cep", n, config, **kwargs)
+
+    def address(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Endereço real do CNEFE como struct; ``.struct.unnest()`` separa as colunas (`AddressConfig`)."""
+        return self.generate("address", n, config, **kwargs)
+
+    def city(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Município pela população; ``uf``, ``with_state`` (`CityConfig`)."""
+        return self.generate("city", n, config, **kwargs)
+
+    def state(self, n: int, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """UF pela população (`StateConfig`)."""
+        return self.generate("state", n, config, **kwargs)

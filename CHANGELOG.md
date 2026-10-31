@@ -38,8 +38,34 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
 - `full_name` decide as partes por índice e monta o texto de uma vez no C++ (`dg_join_views`), em paralelo por bloco.
 - Windows: `DG_CLANGCL=1` compila com clang-cl (os wheels usam); sem a variável, MSVC.
 
+- Fase 4 (em andamento): documentos com dígito verificador correto — `cpf` e `cnpj` (numérico e alfanumérico, ordem
+  fixa ou sorteada, opção `unique` sem repetição: a linha `i` recebe `perm(i)`, uma cifra de Feistel com chave
+  tirada da semente, então os valores parecem aleatórios e continuam estáveis por prefixo; ABI 4), `pis`,
+  `voter_id` (válido nas duas leituras da regra de SP/MG), `cnh`, `rg` (padrão SP), `license_plate` (Mercosul ou
+  antiga), `credit_card` (Luhn; Visa, Mastercard, Amex), `iban` (Brasil) e `ean13` (prefixo 789); rede — `uuid` (v4),
+  `ipv4` (público sem faixas reservadas, ou privado), `ipv6`, `mac` (unicast) e `url` (palavras e TLDs do locale).
+  Validadores públicos em `nini_datagen.validators`. Os textos saem prontos do C++ nas views do Arrow (`TextJob`).
+- Fase 4, segunda parte: `phone` (DDD com peso pela população da UF no Censo 2022, filtro por `uf`; celular, fixo,
+  máscara e +55), `email` e `username` (8 estilos, nomes e sobrenomes com o peso das bases), `company` (razão social),
+  `vehicle` (struct `{brand, model, year}` coerente), `occupation`, `sentence` e `paragraph` (gramática de frases com
+  concordância, 5 temas ou modelos próprios com `templates`/`slots`). ABI 5.
+- Gramática: símbolos só de literais ({d}, {pessoa}...) viram folhas copiadas direto, sem pilha; o buffer de texto é
+  reservado pela média estimada e, se encher, o kernel para e continua num buffer novo com o mesmo estado (a saída não
+  depende do corte).
+- Mais rápidos: IBAN (DV módulo 97 calculado por partes, sem percorrer os dígitos), URL (menos chamadas do gerador,
+  palavras sorteadas 2 por número), cartão (Luhn por tabela), e todos os textos com buffer: o índice do buffer nas views
+  é gravado no C++ (`dg_views_used`) em vez de máscara do numpy, que custava ~7 ns por linha.
+- Gramática (ABI 6): toda opção termina com um token de fim e o tipo do token sai de 2 bits de uma vez (menos desvios
+  mal previstos); folhas vizinhas viram uma folha combinada (`{d1}{d}{d}` -> 900 opções, mesma distribuição, menos
+  sorteios); no parágrafo, uma frase igual à anterior é sorteada de novo (até 16 vezes). Concordância corrigida em
+  duas opções do tema atendimento ("transferido", "contatado").
+
+- Fase 5: endereços do CNEFE (IBGE, Censo 2022) em kernel: `cep`, `address` (struct com rua, número, complemento,
+  bairro, cidade, UF e CEP coerentes; opcionais `phone` com o DDD da UF, `coords` e `full`), `city` e `state` pela
+  população. O trecho é sorteado pelo número de endereços e os textos são cópias de views das tabelas de nomes, sem
+  Polars no caminho (escala com as threads). Base leve no pacote; a completa em `nini_datagen.datasets.download`
+  (cache local, SHA-256, versão do formato). `tools/build_cnefe.py` gera as duas a partir dos dados do MVP. ABI 7.
+
 ### Próximas fases
-- Fase 4: documentos (CPF, CNPJ numérico e alfanumérico, PIS, título, CNH, RG, placa, cartão, IBAN, EAN), rede (UUID,
-  IP, MAC, URL), email, username, empresa, veículo e frases.
-- Fase 5: endereço e CEP no C++, CNEFE reduzido no pacote e `download` da base completa.
+- Fase 5: conferir as amostras com a base real, publicar o release `data-cnefe-v1` e gravar os gabaritos.
 - Fase 6: `table`/`scan` (esquema, LazyFrame) em paralelo por blocos; testes com arquivos de referência (datacompolars).
