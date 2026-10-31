@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -34,7 +36,8 @@ def test_alias_table_and_weights():
     t = alias_table([1, 2, 3])
     assert t.dtype == np.uint64
     assert t.shape == (3,)
-    for bad in ([], [1, -1], [0, 0], [1, float("nan")], [[1, 2]]):
+    bad_cases: list[Any] = [[], [1, -1], [0, 0], [1, float("nan")], [[1, 2]]]
+    for bad in bad_cases:
         with pytest.raises(ValueError, match="weights"):
             check_weights(bad)
     with pytest.raises(ValueError, match="3 opções"):

@@ -17,14 +17,14 @@ if TYPE_CHECKING:
 
 __all__ = ["Registry", "registry"]
 
-P = TypeVar("P", bound="type[Provider[Any]]")
+P = TypeVar("P", bound="Provider[Any]")
 
 
 class Registry:
     def __init__(self) -> None:
         self._providers: dict[str, Provider[Any]] = {}
 
-    def register(self, cls: P) -> P:
+    def register(self, cls: type[P]) -> type[P]:
         """Decorador de classe: registra uma instância do provider com o nome ``cls.kind``."""
         kind = cls.kind
         if kind in self._providers:

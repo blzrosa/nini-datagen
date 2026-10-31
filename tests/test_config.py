@@ -89,7 +89,9 @@ def test_registry_config_sources():
     assert registry.config("integer", base, high=10) == dg.IntegerConfig(low=1, high=10)
     assert registry.config("integer", {"low": 2}, high=3) == dg.IntegerConfig(low=2, high=3)
     assert registry.config("choice", ["a", "b"]) == dg.ChoiceConfig(values=("a", "b"))
-    assert registry.config("choice", ("x",), weights=[1]).weights == (1.0,)
+    weighted = registry.config("choice", ("x",), weights=[1])
+    assert isinstance(weighted, dg.ChoiceConfig)
+    assert weighted.weights == (1.0,)
     with pytest.raises(TypeError, match="IntegerConfig"):
         registry.config("integer", dg.BooleanConfig())
     with pytest.raises(TypeError):
@@ -100,6 +102,10 @@ def test_registry_config_sources():
 
 def test_registry_config_from_numpy_and_series():
     np = pytest.importorskip("numpy")
-    assert registry.config("choice", np.array([1, 2])).values == (1, 2)
+    from_numpy = registry.config("choice", np.array([1, 2]))
+    assert isinstance(from_numpy, dg.ChoiceConfig)
+    assert from_numpy.values == (1, 2)
     pl = pytest.importorskip("polars")
-    assert registry.config("choice", pl.Series(["a", "b"])).values == ("a", "b")
+    from_series = registry.config("choice", pl.Series(["a", "b"]))
+    assert isinstance(from_series, dg.ChoiceConfig)
+    assert from_series.values == ("a", "b")

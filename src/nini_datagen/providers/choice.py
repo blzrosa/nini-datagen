@@ -60,12 +60,13 @@ class ViewsChoiceByJob(ViewsChoiceJob):
 
     def __init__(self, n: int, vocab: Vocabulary, tab: np.ndarray, k0: int, group0: np.ndarray) -> None:
         super().__init__(n, vocab, tab)
+        self.tab_by = tab  # sempre presente aqui (no pai, None quer dizer escolha uniforme)
         self.k0, self.k1 = k0, len(vocab) - k0
         self.group0 = np.ascontiguousarray(group0, dtype=np.uint8)
 
     def fill(self, block: Block, state: np.ndarray) -> None:
         lib().dg_choice_alias_views_by(
-            ptr(self.vocab.views), self.k0, self.k1, ptr(self.tab), ptr(self.group0[block.start :]),
+            ptr(self.vocab.views), self.k0, self.k1, ptr(self.tab_by), ptr(self.group0[block.start :]),
             ptr(state), block.rows, ptr(self.views[block.start :]),
         )  # fmt: skip
 
@@ -96,7 +97,7 @@ class IndexChoiceJob(Job):
     def finish(self, name: str, validity: np.ndarray | None) -> pl.Series:
         vals = self.values[self.idx]
         if vals.dtype == np.bool_:
-            bits = np.packbits(vals, bitorder="little")
+            bits = np.packbits(np.asarray(vals, dtype=np.bool_), bitorder="little")
             return bits_to_series(bits, self.n, name, validity)
         return primitive_to_series(vals, name, validity)
 
