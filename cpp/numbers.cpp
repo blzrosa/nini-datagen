@@ -95,6 +95,24 @@ DG_EXPORT void dg_rand_normal(u64* s, double mu, double sigma, int lognormal, i6
   if (lognormal) for (i64 r = 0; r < m; r++) out[r] = det_exp(out[r]);
 }
 
+// correlated: mean + a*z[r] + b*Normal(0,1) (e exp, se lognormal), com o mesmo sorteio de dg_rand_normal e o exp
+// deterministico (sem a biblioteca do sistema: a mesma semente da os mesmos bits em qualquer maquina)
+DG_EXPORT void dg_correlated(u64* s, const double* z, double a, double b, double mean, int lognormal, i64 m,
+                             double* out) {
+  LOAD_S;
+  for (i64 r = 0; r < m; r++) {
+    NEXT_X(); double p = ((double)(x >> 11) + 0.5) * (1.0 / 9007199254740992.0);
+    double y = b * inv_norm(p);
+    y += a * z[r];
+    out[r] = y + mean;
+  }
+  SAVE_S;
+  if (lognormal) for (i64 r = 0; r < m; r++) out[r] = det_exp(out[r]);
+}
+
+// exp deterministico, para o Python (parametros derivados, ex.: media da lognormal) sem o exp do sistema
+DG_EXPORT double dg_det_exp(double x) { return det_exp(x); }
+
 // indices ponderados (alias) como uint32 -- para valores numericos com distribuicao arbitraria (ex.: idade)
 DG_EXPORT void dg_alias_idx(u32 k, const u64* tab, u64* s, i64 m, u32* out) {
   LOAD_S;

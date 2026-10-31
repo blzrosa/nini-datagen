@@ -221,9 +221,8 @@ class PtBR(Locale):
         Não é a tabela do IBGE (é uma curva suave com o formato dela); passe ``weights`` para usar outra.
         """
         ages = np.arange(low, high + 1, dtype=np.float64)
-        w = np.where(
-            ages < 40,
-            1.0,
-            np.where(ages < 60, 1.0 - 0.3 * (ages - 40) / 20, 0.7 * np.clip((100 - ages) / 40, 0.0, 1.0) ** 1.5),
-        )
+        c = np.clip((100 - ages) / 40, 0.0, 1.0)
+        # c^1.5 como c * sqrt(c): a raiz é exata em qualquer máquina, a potência (pow do sistema) não. As tabelas de
+        # sorteio da idade saem idênticas às de antes (conferido para todo low <= high em 0..100).
+        w = np.where(ages < 40, 1.0, np.where(ages < 60, 1.0 - 0.3 * (ages - 40) / 20, 0.7 * (c * np.sqrt(c))))
         return np.maximum(w, 1e-6)

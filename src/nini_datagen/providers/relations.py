@@ -26,7 +26,14 @@ from ..core.tables import Vocabulary
 from ..registry import registry
 from .base import Job, Provider, Run
 
-__all__ = ["BirthdateProvider", "ChoiceByProvider", "CorrelatedProvider", "as_series", "days_before_years"]
+__all__ = [
+    "BirthdateProvider",
+    "ChoiceByProvider",
+    "CorrelatedProvider",
+    "as_series",
+    "days_before_years",
+    "sample_moments",
+]
 
 _EPOCH = dt.date(1970, 1, 1)
 
@@ -62,6 +69,19 @@ def _and(a: np.ndarray | None, b: np.ndarray | None) -> np.ndarray | None:
     if b is None:
         return a
     return a & b
+
+
+def sample_moments(x: pl.Series) -> tuple[float, float]:
+    """Média e desvio padrão (populacional) dos valores não nulos, com soma exata (`math.fsum`): o resultado não
+    depende da ordem da soma, então é o mesmo em qualquer máquina (a soma do Polars e do numpy pode mudar o último
+    bit conforme a CPU)."""
+    v = x.drop_nulls().to_numpy()
+    v = v[~np.isnan(v)]
+    if len(v) == 0:
+        return 0.0, 0.0
+    mean = math.fsum(v.tolist()) / len(v)
+    var = math.fsum(((v - mean) ** 2).tolist()) / len(v)
+    return mean, math.sqrt(var)
 
 
 def days_before_years(on: dt.date, years: np.ndarray) -> np.ndarray:
@@ -124,13 +144,10 @@ class _CorrelatedJob(Job):
         self.out = np.empty(n, np.float64)
 
     def fill(self, block: Block, state: np.ndarray) -> None:
-        seg = self.out[block.start : block.start + block.rows]
-        lib().dg_rand_normal(ptr(state), 0.0, 1.0, 0, block.rows, ptr(seg))
-        seg *= self.b
-        seg += self.a * self.z[block.start : block.start + block.rows]
-        seg += self.mean
-        if self.lognormal:
-            np.exp(seg, out=seg)
+        a, m = block.start, block.rows
+        # no C++: o exp é o determinístico (o np.exp muda o último bit conforme a CPU e o sistema)
+        lib().dg_correlated(ptr(state), ptr(self.z[a:]), self.a, self.b, self.mean, int(self.lognormal), m,
+                            ptr(self.out[a:]))  # fmt: skip
 
     def finish(self, name: str, validity: np.ndarray | None) -> pl.Series:
         return primitive_to_series(self.out, name, validity)
@@ -149,12 +166,10 @@ class CorrelatedProvider(Provider[CorrelatedConfig]):
             raise TypeError(f"a coluna 'other' deve ser numérica, veio {s.dtype}")
         x = s.cast(pl.Float64)
         center, scale = config.center, config.scale
-        if center is None:
-            m = x.mean()
-            center = float(m) if m is not None else 0.0  # type: ignore[arg-type]
-        if scale is None:
-            sd = x.std(ddof=0)
-            scale = float(sd) if sd is not None and float(sd) > 0 else 0.0  # type: ignore[arg-type]
+        if center is None or scale is None:
+            mean, sd = sample_moments(x)
+            center = mean if center is None else center
+            scale = sd if scale is None else scale
         xs = x.fill_null(center).fill_nan(center).to_numpy()
         z = (xs - center) / scale if scale > 0 else np.zeros(run.n)
         return _CorrelatedJob(run.n, np.ascontiguousarray(z, np.float64), config)
@@ -213,7 +228,7 @@ class ChoiceByProvider(Provider[ChoiceByConfig]):
         edges: list[float] = []
         for gi, (vals, weights) in enumerate(groups):
             w = np.ones(len(vals)) if weights is None else np.asarray(weights, np.float64)
-            cum = np.cumsum(w) / w.sum()
+            cum = np.cumsum(w) / math.fsum(w.tolist())
             cum[-1] = 1.0
             edges.extend(gi + cum)
             values.extend(vals)

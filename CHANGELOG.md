@@ -73,6 +73,9 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   bloco da coluna (`first_block`), e é isso que garante `scan(...).collect() == table(...)`. Geradores novos que
   dependem de outra coluna: `birthdate` (coerente com a idade), `correlated` (correlação `rho`, também na escala
   do log; numa tabela, o centro e a escala vêm da distribuição da coluna referida) e `choice_by` (escolha condicional).
+  `correlated` roda no C++ com o exp determinístico (`dg_correlated`), e as médias e desvios usados como centro e
+  escala são somas exatas (`math.fsum`), para a mesma semente dar os mesmos bits em Windows, Linux e macOS (o `np.exp`
+  e o `pow` do sistema mudam o último bit conforme a máquina). ABI 8.
 
 ### Próximas fases
 - Fase 6, segunda parte: dados sujos (`dirty`), duplicatas e `write_parquet_dataset`.

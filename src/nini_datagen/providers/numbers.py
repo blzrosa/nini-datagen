@@ -89,8 +89,9 @@ class LognormalProvider(Provider[LognormalConfig]):
         return ArrayJob(run.n, np.float64, lambda st, m, o: fn(st, mu, sd, 1, m, o))
 
     def moments(self, config: LognormalConfig, locale: Locale) -> tuple[float, float]:
+        exp = lib().dg_det_exp  # o exp determinístico do C++ (o math.exp depende da biblioteca do sistema)
         mu, s2 = config.mean, config.sigma * config.sigma
-        return math.exp(mu + s2 / 2), math.sqrt(math.expm1(s2) * math.exp(2 * mu + s2))
+        return exp(mu + s2 / 2), math.sqrt((exp(s2) - 1.0) * exp(2 * mu + s2))
 
 
 @registry.register

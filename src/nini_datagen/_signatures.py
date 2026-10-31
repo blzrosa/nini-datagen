@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ctypes import c_double, c_float, c_int, c_int64, c_uint8, c_uint16, c_uint32, c_uint64, c_void_p
 
-ABI_VERSION = 7
+ABI_VERSION = 8
 
 # nome: (tipo de retorno, [tipos dos argumentos])
 SIGNATURES = {
@@ -34,6 +34,8 @@ SIGNATURES = {
     "dg_rand_f64": (None, [c_void_p, c_double, c_double, c_int64, c_void_p]),
     "dg_rand_f32": (None, [c_void_p, c_float, c_float, c_int64, c_void_p]),
     "dg_rand_normal": (None, [c_void_p, c_double, c_double, c_int, c_int64, c_void_p]),
+    "dg_correlated": (None, [c_void_p, c_void_p, c_double, c_double, c_double, c_int, c_int64, c_void_p]),
+    "dg_det_exp": (c_double, [c_double]),
     "dg_alias_idx": (None, [c_uint32, c_void_p, c_void_p, c_int64, c_void_p]),
     "dg_choice_views": (None, [c_void_p, c_uint32, c_void_p, c_int64, c_void_p]),
     "dg_choice_alias_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_int64, c_void_p]),

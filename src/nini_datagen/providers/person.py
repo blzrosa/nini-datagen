@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -59,10 +60,10 @@ class AgeProvider(Provider[AgeConfig]):
     def moments(self, config: AgeConfig, locale: Locale) -> tuple[float, float]:
         w = np.asarray(config.weights if config.weights is not None else locale.age_weights(config.low, config.high),
                        np.float64)  # fmt: skip
-        p = w / w.sum()
+        total = math.fsum(w.tolist())  # somas exatas: o mesmo resultado em qualquer CPU (o @ do numpy não garante)
         ages = np.arange(config.low, config.high + 1, dtype=np.float64)
-        mean = float(p @ ages)
-        return mean, float(np.sqrt(p @ (ages - mean) ** 2))
+        mean = math.fsum((w * ages).tolist()) / total
+        return mean, math.sqrt(math.fsum((w * (ages - mean) ** 2).tolist()) / total)
 
 
 # ---------------------------------------------------------------------------------------------- nomes
