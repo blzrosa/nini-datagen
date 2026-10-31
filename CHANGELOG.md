@@ -85,6 +85,12 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   juntos são exatamente `table(n, schema)` para qualquer tamanho de lote. `tools/profile_table.py` mostra o custo de
   cada coluna da tabela e dos endereços com a base leve e a completa.
 - CI também em Linux ARM64; wheel Intel do macOS no `macos-15-intel` (o `macos-13` foi desativado).
+- Desempenho (ABI 10): o sorteio de trechos do CNEFE busca a memória em lotes de 64 linhas com prefetch (tabela
+  alias, registro de 32 bytes por trecho com CEP, rua, bairro, cidade, UF e faixa de números, e os nomes da rua e do
+  bairro) e escreve todas as views do endereço numa passada (`dg_address_core`), o que pesa na base completa (4
+  milhões de trechos, maior que o cache); `birthdate` e o `z` de `correlated`
+  passaram para o C++; a tabela planeja e monta as colunas de cada nível em paralelo. Saída idêntica (gabaritos
+  inalterados).
 
 ### Próximas fases
 - Fase 6, terceira parte: metas de desempenho da tabela (`table_20col` ≤ 200 ns com 1 thread e ≥ 4× com 16) e dos

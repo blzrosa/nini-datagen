@@ -19,6 +19,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -75,13 +76,49 @@ def columns(g: dg.DataGen, n: int) -> None:
 
 
 def table(n: int) -> None:
-    print(f"\n== tabela inteira ({n:,} linhas) ==")
+    """A tabela inteira, com o tempo de cada etapa de `Schema.run` (somado entre as threads quando em paralelo)."""
+    from nini_datagen.providers.base import Prepared, Provider  # noqa: PLC0415
+    from nini_datagen.schema import plan, scan_source  # noqa: PLC0415
+
+    spent = {"prepare": 0.0, "fill": 0.0, "finish": 0.0}
+
+    def timed(key: str, fn: Any) -> Any:
+        def wrapper(*a: Any, **k: Any) -> Any:
+            t0 = time.perf_counter()
+            try:
+                return fn(*a, **k)
+            finally:
+                spent[key] += time.perf_counter() - t0
+
+        return wrapper
+
+    originals = (Provider.prepare, plan._fill, Prepared.finish)
+    print(f"\n== tabela inteira ({n:,} linhas; ns/linha) ==")
+    print("etapas: prepare e finish somam o tempo de cada coluna (em paralelo, a soma passa do tempo de parede)")
     for threads in (1, os.cpu_count() or 1):
         g = dg.DataGen(seed=1, threads=threads)
         g.table(min(n, 100_000), TABLE_20)
         t = best(lambda: g.table(n, TABLE_20))  # noqa: B023
         lf = best(lambda: g.scan(10**9, TABLE_20).head(n).collect())  # noqa: B023
-        print(f"threads={threads:<3} table {t / n * 1e9:7.1f} ns/linha   scan+head {lf / n * 1e9:7.1f} ns/linha")
+        bound = TABLE_20.bind(g.locale)
+        src = best(lambda: list(scan_source(bound, g._ctx, 10**9, None, None, n, None)))  # noqa: B023
+        Provider.prepare = timed("prepare", originals[0])  # type: ignore[method-assign]
+        plan._fill = timed("fill", originals[1])
+        Prepared.finish = timed("finish", originals[2])  # type: ignore[method-assign]
+        try:
+            for k in spent:
+                spent[k] = 0.0
+            t0 = time.perf_counter()
+            g.table(n, TABLE_20)
+            wall = time.perf_counter() - t0
+        finally:
+            Provider.prepare, plan._fill, Prepared.finish = originals  # type: ignore[method-assign]
+        parts = "  ".join(f"{k} {v / n * 1e9:6.1f}" for k, v in spent.items())
+        print(
+            f"threads={threads:<3} table {t / n * 1e9:7.1f}   scan+head {lf / n * 1e9:7.1f}   "
+            f"(só a fonte, sem o Polars: {src / n * 1e9:7.1f})   "
+            f"[{parts}  parede {wall / n * 1e9:6.1f}]"
+        )
 
 
 def addresses(n: int) -> None:

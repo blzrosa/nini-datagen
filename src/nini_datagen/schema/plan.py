@@ -13,13 +13,14 @@ lotes (`scan`, `write_parquet_dataset`) dá a mesma tabela que gerar tudo de uma
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 import polars as pl
 
-from ..core.blocks import BLOCK_ROWS, Block, map_blocks, split
+from ..core.blocks import BLOCK_ROWS, Block, map_blocks, resolve_threads, split
 from ..locales import Locale
 from ..providers.base import PARALLEL_MIN_NS, Context, Prepared
 from ..registry import registry
@@ -151,32 +152,51 @@ class Schema:
         return out
 
     def run(self, ctx: Context, n: int, first_block: int = 0) -> pl.DataFrame:
-        """Gera as linhas ``first_block * BLOCK_ROWS ..`` (``n`` linhas) da tabela. Use `bind` antes."""
+        """Gera as linhas ``first_block * BLOCK_ROWS ..`` (``n`` linhas) da tabela. Use `bind` antes.
+
+        Em cada nível: planeja as colunas (em paralelo: cada uma lê só as suas entradas), preenche os blocos (todas as
+        colunas de um bloco de uma vez, blocos em paralelo) e monta as Series (em paralelo; inclui os dados sujos).
+        """
         built: dict[str, pl.Series] = {}
         blocks = split(n, first_block)
+        threads = ctx.threads
         for level in self._levels:
-            prepared: list[Prepared] = []
-            cost = 0.0
-            for name in level:
-                spec = self._columns[name]
-                if not isinstance(spec, Column):
-                    continue
+            cols = [self._columns[c] for c in level]
+            gen = [c for c in cols if isinstance(c, Column)]
+            for spec in gen:
                 provider = registry.get(spec.kind)
-                inputs = {k: built[r.column] for k, r in spec.refs.items()}
                 if provider.composite:  # monta a coluna sozinho (e paraleliza por dentro)
-                    built[name] = provider.generate(n, spec.config, ctx, inputs, first_block)
-                    continue
-                prepared.append(provider.prepare(n, spec.config, ctx, inputs, first_block))
-                cost += provider.ns_per_row
+                    inputs = {k: built[r.column] for k, r in spec.refs.items()}
+                    built[spec.name] = provider.generate(n, spec.config, ctx, inputs, first_block)
+            fused = [c for c in gen if not registry.get(c.kind).composite]
+
+            def prepare(spec: Column) -> Prepared:
+                inputs = {k: built[r.column] for k, r in spec.refs.items()}
+                return registry.get(spec.kind).prepare(n, spec.config, ctx, inputs, first_block)
+
+            prepared = _map(prepare, fused, threads)
             if prepared:
-                _fill(prepared, blocks, 1 if cost < PARALLEL_MIN_NS else ctx.threads)
-                for p in prepared:
-                    built[p.run.name] = p.finish()
-            for name in level:
-                spec = self._columns[name]
+                cost = sum(registry.get(c.kind).ns_per_row for c in fused)
+                _fill(prepared, blocks, 1 if cost < PARALLEL_MIN_NS else threads)
+                for p, series in zip(prepared, _map(Prepared.finish, prepared, threads), strict=True):
+                    built[p.run.name] = series
+            for spec in cols:
                 if isinstance(spec, ExprColumn):
-                    built[name] = _evaluate(spec, built, n)
+                    built[spec.name] = _evaluate(spec, built, n)
         return pl.DataFrame([built[c] for c in self._order])
+
+
+T = TypeVar("T")
+R = TypeVar("R")
+
+
+def _map(fn: Callable[[T], R], items: Sequence[T], threads: int | None) -> list[R]:
+    """``[fn(x) for x in items]``, em paralelo quando há mais de um item e mais de uma thread (ordem preservada)."""
+    workers = min(resolve_threads(threads), len(items))
+    if workers <= 1:
+        return [fn(x) for x in items]
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="nini-datagen-col") as pool:
+        return list(pool.map(fn, items))
 
 
 def _fill(prepared: list[Prepared], blocks: list[Block], threads: int | None) -> None:

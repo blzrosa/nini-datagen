@@ -95,21 +95,17 @@ def days_before_years(on: dt.date, years: np.ndarray) -> np.ndarray:
 
 class _BirthdateJob(Job):
     def __init__(self, n: int, ages: np.ndarray, on: dt.date, age_validity: np.ndarray | None) -> None:
-        self.ages = ages
+        self.ages = np.ascontiguousarray(ages, np.int64)
         top = int(ages.max()) if len(ages) else 0
-        edges = days_before_years(on, np.arange(top + 2))
-        self.upper = edges  # último dia possível para a idade a: edges[a]
-        self.lower = edges[1:] + 1  # primeiro dia possível: edges[a + 1] + 1
+        edges = days_before_years(on, np.arange(top + 2)).astype(np.int64)
+        self.upper = np.ascontiguousarray(edges)  # último dia possível para a idade a: edges[a]
+        self.lower = np.ascontiguousarray(edges[1:] + 1)  # primeiro dia possível: edges[a + 1] + 1
         self.out = np.empty(n, np.int32)
         self.age_validity = age_validity
 
     def fill(self, block: Block, state: np.ndarray) -> None:
-        a = self.ages[block.start : block.start + block.rows]
-        u = np.empty(block.rows, np.float64)
-        lib().dg_rand_f64(ptr(state), 0.0, 1.0, block.rows, ptr(u))
-        lo = self.lower[a]
-        span = self.upper[a] - lo + 1
-        self.out[block.start : block.start + block.rows] = lo + (u * span).astype(np.int64)
+        a, m = block.start, block.rows
+        lib().dg_birthdate(ptr(state), ptr(self.ages[a:]), ptr(self.lower), ptr(self.upper), m, ptr(self.out[a:]))
 
     def finish(self, name: str, validity: np.ndarray | None) -> pl.Series:
         return primitive_to_series(self.out, name, _and(validity, self.age_validity), arrow_type("date"))
@@ -135,8 +131,8 @@ class BirthdateProvider(Provider[BirthdateConfig]):
 
 
 class _CorrelatedJob(Job):
-    def __init__(self, n: int, z: np.ndarray, config: CorrelatedConfig) -> None:
-        self.z = z
+    def __init__(self, n: int, x: np.ndarray, center: float, scale: float, config: CorrelatedConfig) -> None:
+        self.x, self.center, self.scale = x, center, scale
         self.a = config.std * config.rho
         self.b = config.std * math.sqrt(max(0.0, 1.0 - config.rho * config.rho))
         self.mean = config.mean
@@ -146,8 +142,8 @@ class _CorrelatedJob(Job):
     def fill(self, block: Block, state: np.ndarray) -> None:
         a, m = block.start, block.rows
         # no C++: o exp é o determinístico (o np.exp muda o último bit conforme a CPU e o sistema)
-        lib().dg_correlated(ptr(state), ptr(self.z[a:]), self.a, self.b, self.mean, int(self.lognormal), m,
-                            ptr(self.out[a:]))  # fmt: skip
+        lib().dg_correlated(ptr(state), ptr(self.x[a:]), self.center, self.scale, self.a, self.b, self.mean,
+                            int(self.lognormal), m, ptr(self.out[a:]))  # fmt: skip
 
     def finish(self, name: str, validity: np.ndarray | None) -> pl.Series:
         return primitive_to_series(self.out, name, validity)
@@ -170,9 +166,8 @@ class CorrelatedProvider(Provider[CorrelatedConfig]):
             mean, sd = sample_moments(x)
             center = mean if center is None else center
             scale = sd if scale is None else scale
-        xs = x.fill_null(center).fill_nan(center).to_numpy()
-        z = (xs - center) / scale if scale > 0 else np.zeros(run.n)
-        return _CorrelatedJob(run.n, np.ascontiguousarray(z, np.float64), config)
+        xs = np.ascontiguousarray(x.fill_null(center).fill_nan(center).to_numpy(), np.float64)
+        return _CorrelatedJob(run.n, xs, center, scale if scale > 0 else 0.0, config)
 
 
 class _ChoiceByJob(Job):

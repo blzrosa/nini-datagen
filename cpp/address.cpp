@@ -94,38 +94,92 @@ static inline void cep_view(u32 c, int formatted, u32* v) {
   }
 }
 
-// CEP direto: sorteia o trecho (alias sobre os pesos) e formata o CEP dele, numa passada so
+// Sorteio de trechos com prefetch. Na base completa (4 milhoes de trechos) a tabela alias (32 MB) e os dados dos
+// trechos nao cabem no cache: cada linha esperaria a memoria duas vezes, uma depois da outra. Em lotes de PICK_BATCH
+// linhas: 1) sorteia e pede ao processador a entrada da tabela alias de todas (prefetch); 2) resolve o alias e pede o
+// trecho; 3) usa o trecho. As esperas de linhas diferentes se sobrepoem. Mesmo consumo do gerador que dg_alias_idx
+// (um numero por linha, na mesma ordem): o resultado e identico ao do sorteio linha a linha.
+#define PICK_BATCH 64
+#if defined(__GNUC__) || defined(__clang__)
+#define DG_PREFETCH(p) __builtin_prefetch((const void*)(p))
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#if defined(_M_X64) || defined(_M_IX86)
+#define DG_PREFETCH(p) _mm_prefetch((const char*)(p), _MM_HINT_T0)
+#else
+#define DG_PREFETCH(p) __prefetch((const void*)(p))
+#endif
+#else
+#define DG_PREFETCH(p) ((void)0)
+#endif
+
+// CEP direto: sorteia o trecho (alias sobre os pesos) e formata o CEP dele
 DG_EXPORT void dg_cep_pick(u64* st, u32 k, const u64* tab, const u32* ceps, int formatted, i64 m, u32* V) {
   init_cpf();
   u64 s0 = st[0], s1 = st[1], s2 = st[2], s3 = st[3];
-  for (i64 r = 0; r < m; r++) {
-    u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17; s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
-    cep_view(ceps[alias_pick(k, tab, x)], formatted, V + 4 * r);
+  u64 xs[PICK_BATCH]; u32 js[PICK_BATCH];
+  for (i64 r0 = 0; r0 < m; r0 += PICK_BATCH) {
+    int b = (int)(m - r0 < PICK_BATCH ? m - r0 : PICK_BATCH);
+    for (int q = 0; q < b; q++) {
+      u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17; s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
+      xs[q] = x; DG_PREFETCH(tab + (u32)(((x >> 32) * (u64)k) >> 32));
+    }
+    for (int q = 0; q < b; q++) { js[q] = alias_pick(k, tab, xs[q]); DG_PREFETCH(ceps + js[q]); }
+    for (int q = 0; q < b; q++) cep_view(ceps[js[q]], formatted, V + 4 * (r0 + q));
   }
   st[0] = s0; st[1] = s1; st[2] = s2; st[3] = s3;
 }
 
-// CEP dos trechos ja sorteados (idx)
-DG_EXPORT void dg_cep_of(const u32* ceps, const u32* idx, int formatted, i64 m, u32* V) {
+// Endereco, numa passada por lote de PICK_BATCH linhas: sorteia o trecho (prefetch da tabela alias), le o registro
+// dele (prefetch; REC_U32 inteiros: cep, rua, bairro, cidade, UF, numero minimo, numero maximo, livre), pede os nomes
+// da rua e do bairro (prefetch nos vocabularios, que na base completa tambem nao cabem no cache) e escreve as views de
+// rua, bairro, cidade, UF e CEP. Para os passos seguintes (numero, DDD) sai `small`, ROW_U32 inteiros por linha:
+// numero minimo, numero maximo e UF. Mesmo consumo do gerador que dg_alias_idx: resultado identico.
+#define REC_U32 8
+#define ROW_U32 4
+DG_EXPORT void dg_address_core(u64* st, u32 k, const u64* tab, const u32* rec, const u32* dv_street,
+                               const u32* dv_district, const u32* dv_city, const u32* dv_state, i64 m, u32* idx,
+                               u32* small, u32* Vs, u32* Vd, u32* Vc, u32* Vu, u32* Vcep) {
   init_cpf();
-  for (i64 r = 0; r < m; r++) cep_view(ceps[idx[r]], formatted, V + 4 * r);
-}
-
-// V[r] = dv[map[idx[r]]] (map nulo: dv[idx[r]]): nome da rua, do bairro, da cidade ou da UF do trecho sorteado
-DG_EXPORT void dg_gather_map_views(const u32* dv, const u32* map, const u32* idx, i64 m, u32* V) {
-  if (map) for (i64 r = 0; r < m; r++) memcpy(V + 4 * r, dv + 4 * (size_t)map[idx[r]], 16);
-  else     for (i64 r = 0; r < m; r++) memcpy(V + 4 * r, dv + 4 * (size_t)idx[r], 16);
+  u64 s0 = st[0], s1 = st[1], s2 = st[2], s3 = st[3];
+  u64 xs[PICK_BATCH];
+  for (i64 r0 = 0; r0 < m; r0 += PICK_BATCH) {
+    int b = (int)(m - r0 < PICK_BATCH ? m - r0 : PICK_BATCH);
+    for (int q = 0; q < b; q++) {
+      u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17; s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
+      xs[q] = x; DG_PREFETCH(tab + (u32)(((x >> 32) * (u64)k) >> 32));
+    }
+    for (int q = 0; q < b; q++) {
+      u32 j = alias_pick(k, tab, xs[q]); idx[r0 + q] = j; DG_PREFETCH(rec + (size_t)REC_U32 * j);
+    }
+    for (int q = 0; q < b; q++) {
+      const u32* e = rec + (size_t)REC_U32 * idx[r0 + q];
+      DG_PREFETCH(dv_street + 4 * (size_t)e[1]); DG_PREFETCH(dv_district + 4 * (size_t)e[2]);
+    }
+    for (int q = 0; q < b; q++) {
+      i64 r = r0 + q;
+      const u32* e = rec + (size_t)REC_U32 * idx[r];
+      memcpy(Vs + 4 * r, dv_street + 4 * (size_t)e[1], 16);
+      memcpy(Vd + 4 * r, dv_district + 4 * (size_t)e[2], 16);
+      memcpy(Vc + 4 * r, dv_city + 4 * (size_t)e[3], 16);
+      memcpy(Vu + 4 * r, dv_state + 4 * (size_t)e[4], 16);
+      cep_view(e[0], 1, Vcep + 4 * r);
+      u32* w = small + (size_t)ROW_U32 * r; w[0] = e[5]; w[1] = e[6]; w[2] = e[4]; w[3] = 0;
+    }
+  }
+  st[0] = s0; st[1] = s1; st[2] = s2; st[3] = s3;
 }
 
 // Numero da casa. Com a faixa real do trecho (lo..hi, lo > 0): log-uniforme entre lo e hi, para numeros baixos sairem
 // mais (um unico endereco rural "27201" nao puxa a rua inteira para 5 digitos). Sem faixa (lo nulo, ou lo[i] <= 0):
 // lognormal(4,2; 1,1) cortada em 1..9999. Um numero do gerador por linha; log/exp deterministicos (detmath.hpp).
-DG_EXPORT void dg_house_number(u64* st, const u32* idx, const i32* lo, const i32* hi, i64 m, i32* out) {
+DG_EXPORT void dg_house_number(u64* st, const u32* small, i64 m, i32* out) {
   u64 s0 = st[0], s1 = st[1], s2 = st[2], s3 = st[3];
   for (i64 r = 0; r < m; r++) {
     u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17; s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
     double u = (double)(x >> 11) * (1.0 / 9007199254740992.0);   // [0, 1)
-    i32 a = lo ? lo[idx[r]] : 0, b = hi ? hi[idx[r]] : 0;
+    const u32* row = small + (size_t)ROW_U32 * r;
+    i32 a = (i32)row[0], b = (i32)row[1];                         // faixa do trecho (0 quando a base nao tem)
     i32 v;
     if (a > 0 && b >= a) {
       double la = det_log((double)a), lb = det_log((double)b + 1.0);
@@ -141,14 +195,14 @@ DG_EXPORT void dg_house_number(u64* st, const u32* idx, const i32* lo, const i32
   st[0] = s0; st[1] = s1; st[2] = s2; st[3] = s3;
 }
 
-// Escolha uniforme dentro do grupo da linha: out[r] = flat[off[g] + uniforme(cnt[g])], g = group[idx[r]]
+// Escolha uniforme dentro do grupo da linha: out[r] = flat[off[g] + uniforme(cnt[g])], g = small[r * ROW_U32 + field]
 // (ex.: DDD entre os da UF do trecho sorteado)
-DG_EXPORT void dg_pick_in_group(u64* st, const u32* group, const u32* idx, const u32* off, const u32* cnt, const u32* flat,
+DG_EXPORT void dg_pick_in_group(u64* st, const u32* small, int field, const u32* off, const u32* cnt, const u32* flat,
                                 i64 m, u32* out) {
   u64 s0 = st[0], s1 = st[1], s2 = st[2], s3 = st[3];
   for (i64 r = 0; r < m; r++) {
     u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17; s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
-    u32 g = group[idx[r]];
+    u32 g = small[(size_t)ROW_U32 * r + field];
     out[r] = flat[off[g] + (u32)(((x >> 32) * (u64)cnt[g]) >> 32)];
   }
   st[0] = s0; st[1] = s1; st[2] = s2; st[3] = s3;

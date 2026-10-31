@@ -5,7 +5,7 @@
 #pragma once
 #include <stdint.h>
 
-#define DG_ABI_VERSION 8
+#define DG_ABI_VERSION 10
 
 // DG_API: exportada ao compilar a biblioteca (DG_BUILDING), importada ao usá-la de outro código C/C++
 #if defined(_WIN32)
@@ -28,10 +28,9 @@ DG_API void dg_cep_views_uf(uint64_t* st, const uint32_t* uf_idx, const uint32_t
 DG_API void dg_empresa_views(uint64_t* st, uint32_t ks, const uint8_t* sch, const uint8_t* sln, const uint64_t* stab, uint32_t kb, const uint8_t* bch, const uint8_t* bln, const uint64_t* btab, uint32_t kr, const uint8_t* rch, const uint8_t* rln, const uint64_t* rtab, uint32_t kt, const uint8_t* tch, const uint8_t* tln, const uint64_t* ttab, int64_t m, uint32_t* V, uint8_t* D);
 DG_API void dg_veiculo_idx(uint64_t* st, uint32_t nb, const uint64_t* btab, const uint32_t* moff, const uint32_t* mcnt, const uint64_t* mtabs, uint32_t ky, const uint64_t* ytab, int64_t m, uint32_t* bo, uint32_t* mo, uint32_t* yo);
 DG_API void dg_cep_pick(uint64_t* st, uint32_t k, const uint64_t* tab, const uint32_t* ceps, int formatted, int64_t m, uint32_t* V);
-DG_API void dg_cep_of(const uint32_t* ceps, const uint32_t* idx, int formatted, int64_t m, uint32_t* V);
-DG_API void dg_gather_map_views(const uint32_t* dv, const uint32_t* map, const uint32_t* idx, int64_t m, uint32_t* V);
-DG_API void dg_house_number(uint64_t* st, const uint32_t* idx, const int32_t* lo, const int32_t* hi, int64_t m, int32_t* out);
-DG_API void dg_pick_in_group(uint64_t* st, const uint32_t* group, const uint32_t* idx, const uint32_t* off, const uint32_t* cnt, const uint32_t* flat, int64_t m, uint32_t* out);
+DG_API void dg_address_core(uint64_t* st, uint32_t k, const uint64_t* tab, const uint32_t* rec, const uint32_t* dv_street, const uint32_t* dv_district, const uint32_t* dv_city, const uint32_t* dv_state, int64_t m, uint32_t* idx, uint32_t* small, uint32_t* Vs, uint32_t* Vd, uint32_t* Vc, uint32_t* Vu, uint32_t* Vcep);
+DG_API void dg_house_number(uint64_t* st, const uint32_t* small, int64_t m, int32_t* out);
+DG_API void dg_pick_in_group(uint64_t* st, const uint32_t* small, int field, const uint32_t* off, const uint32_t* cnt, const uint32_t* flat, int64_t m, uint32_t* out);
 DG_API void dg_int_views(const int32_t* x, int64_t m, uint32_t* V);
 DG_API int64_t dg_concat_size(int64_t m, int k, const uint32_t* const* V, const uint32_t* sep_off);
 DG_API void dg_concat_views(int64_t m, int k, const uint32_t* const* V, const uint8_t* const* const* bufs, const uint8_t* seps, const uint32_t* sep_off, uint32_t* out, uint8_t* D);
@@ -56,7 +55,8 @@ DG_API void dg_rand_i32(uint64_t* s, int lo, uint32_t span, int64_t m, int* out)
 DG_API void dg_rand_f64(uint64_t* s, double lo, double hi, int64_t m, double* out);
 DG_API void dg_rand_f32(uint64_t* s, float lo, float hi, int64_t m, float* out);
 DG_API void dg_rand_normal(uint64_t* s, double mu, double sigma, int lognormal, int64_t m, double* out);
-DG_API void dg_correlated(uint64_t* s, const double* z, double a, double b, double mean, int lognormal, int64_t m, double* out);
+DG_API void dg_correlated(uint64_t* s, const double* x_in, double center, double scale, double a, double b, double mean, int lognormal, int64_t m, double* out);
+DG_API void dg_birthdate(uint64_t* s, const int64_t* ages, const int64_t* lower, const int64_t* upper, int64_t m, int32_t* out);
 DG_API double dg_det_exp(double x);
 DG_API void dg_alias_idx(uint32_t k, const uint64_t* tab, uint64_t* s, int64_t m, uint32_t* out);
 

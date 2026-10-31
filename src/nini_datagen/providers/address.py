@@ -42,17 +42,38 @@ def _names(locale: Locale, source: str) -> dict[str, Any]:
         states = _states(locale)
         pos = {u: i for i, u in enumerate(states)}
         mun_uf = np.array([pos[u] for u in mun.ufs], np.uint32)
+        row_uf = np.ascontiguousarray(mun_uf[base.city])
         return {
             "base": base,
+            "rec": _records(base, row_uf),
             "streets": ViewTable.from_series(base.streets),
             "districts": ViewTable.from_series(base.districts),
             "cities": ViewTable.from_strings(mun.names),
             "states": ViewTable.from_strings(states),
-            "row_uf": np.ascontiguousarray(mun_uf[base.city]),
+            "row_uf": row_uf,
             "uf_pos": pos,
         }
 
     return locale.cached(("address_names", base.source), build)
+
+
+# campos do registro de cada trecho (REC_U32 = 8 inteiros de 32 bits em address.cpp)
+REC_CEP, REC_STREET, REC_DISTRICT, REC_CITY, REC_UF, REC_NUM_MIN, REC_NUM_MAX = range(7)
+
+
+def _records(base: Any, row_uf: np.ndarray) -> np.ndarray:
+    """Um registro de 32 bytes por trecho com tudo o que o endereço lê dele: o sorteio busca um registro só na memória
+    (meia linha de cache) em vez de um valor em cada array, o que pesa na base completa (4 milhões de trechos)."""
+    rec = np.zeros((len(base), 8), np.uint32)
+    rec[:, REC_CEP] = base.cep
+    rec[:, REC_STREET] = base.street
+    rec[:, REC_DISTRICT] = base.district
+    rec[:, REC_CITY] = base.city
+    rec[:, REC_UF] = row_uf
+    if base.number_min is not None and base.number_max is not None:
+        rec[:, REC_NUM_MIN] = base.number_min.astype(np.int32).view(np.uint32)
+        rec[:, REC_NUM_MAX] = base.number_max.astype(np.int32).view(np.uint32)
+    return rec
 
 
 def address_tables(locale: Locale, source: str, ufs: tuple[str, ...] | None) -> dict[str, Any]:
@@ -138,33 +159,30 @@ class AddressJob(Job):
             self.sep_off = np.cumsum([0, *(len(s.encode("utf-8")) for s in FULL_SEPARATORS)]).astype(np.uint32)
 
     def fill(self, block: Block, state: np.ndarray) -> None:
-        t, base, dg = self.t, self.t["base"], lib()
+        t, dg = self.t, lib()
         a, m = block.start, block.rows
-        idx = self.idx[a : a + m]
-        dg.dg_alias_idx(t["k"], ptr(t["tab"]), ptr(state), m, ptr(idx))
-        lo = ptr(self.lo) if self.lo is not None else None
-        hi = ptr(self.hi) if self.hi is not None else None
-        dg.dg_house_number(ptr(self.number_states[block.index]), ptr(idx), lo, hi, m, ptr(self.number[a:]))
         v = {f: arr[a : a + m] for f, arr in self.views.items()}
-        dg.dg_gather_map_views(ptr(t["streets"].views), ptr(base.street), ptr(idx), m, ptr(v["street"]))
-        dg.dg_gather_map_views(ptr(t["districts"].views), ptr(base.district), ptr(idx), m, ptr(v["neighborhood"]))
-        dg.dg_gather_map_views(ptr(t["cities"].views), ptr(base.city), ptr(idx), m, ptr(v["city"]))
-        dg.dg_gather_map_views(ptr(t["states"].views), ptr(t["row_uf"]), ptr(idx), m, ptr(v["state"]))
-        dg.dg_cep_of(ptr(base.cep), ptr(idx), 1, m, ptr(v["cep"]))
+        small = np.empty((m, 4), np.uint32)  # por linha: número mínimo, número máximo e UF do trecho
+        dg.dg_address_core(
+            ptr(state), t["k"], ptr(t["tab"]), ptr(t["rec"]), ptr(t["streets"].views), ptr(t["districts"].views),
+            ptr(t["cities"].views), ptr(t["states"].views), m, ptr(self.idx[a:]), ptr(small), ptr(v["street"]),
+            ptr(v["neighborhood"]), ptr(v["city"]), ptr(v["state"]), ptr(v["cep"]),
+        )  # fmt: skip
+        dg.dg_house_number(ptr(self.number_states[block.index]), ptr(small), m, ptr(self.number[a:]))
         comp, cst = self.complements, self.complement_states[block.index]
         dg.dg_choice_views(ptr(comp.views), len(comp), ptr(cst), m, ptr(v["complement"]))
         if self.phone is not None:
-            self._phone(block, idx, v["phone"])
+            self._phone(block, small, v["phone"])
         if self.config.full:
             self._full(block, v)
 
-    def _phone(self, block: Block, idx: np.ndarray, out: np.ndarray) -> None:
+    def _phone(self, block: Block, small: np.ndarray, out: np.ndarray) -> None:
         p, dg, m = self.phone, lib(), block.rows
         assert p is not None
         st = self.phone_states[block.index]
         ddd = np.empty(m, np.uint32)
         dst = self.ddd_states[block.index]
-        dg.dg_pick_in_group(ptr(dst), ptr(self.t["row_uf"]), ptr(idx), ptr(p["off"]), ptr(p["cnt"]), ptr(p["flat"]), m,
+        dg.dg_pick_in_group(ptr(dst), ptr(small), 2, ptr(p["off"]), ptr(p["cnt"]), ptr(p["flat"]), m,
                            ptr(ddd))  # fmt: skip
         data = np.empty(m * 16, np.uint8)
         thr = probability_threshold(0.8)

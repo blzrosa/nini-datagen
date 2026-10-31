@@ -95,19 +95,32 @@ DG_EXPORT void dg_rand_normal(u64* s, double mu, double sigma, int lognormal, i6
   if (lognormal) for (i64 r = 0; r < m; r++) out[r] = det_exp(out[r]);
 }
 
-// correlated: mean + a*z[r] + b*Normal(0,1) (e exp, se lognormal), com o mesmo sorteio de dg_rand_normal e o exp
-// deterministico (sem a biblioteca do sistema: a mesma semente da os mesmos bits em qualquer maquina)
-DG_EXPORT void dg_correlated(u64* s, const double* z, double a, double b, double mean, int lognormal, i64 m,
-                             double* out) {
+// correlated: mean + a*z + b*Normal(0,1) (e exp, se lognormal), z = (x - center) / scale (0 sem escala), com o mesmo
+// sorteio de dg_rand_normal e o exp deterministico (sem a biblioteca do sistema: os mesmos bits em qualquer maquina)
+DG_EXPORT void dg_correlated(u64* s, const double* x_in, double center, double scale, double a, double b, double mean,
+                             int lognormal, i64 m, double* out) {
   LOAD_S;
   for (i64 r = 0; r < m; r++) {
     NEXT_X(); double p = ((double)(x >> 11) + 0.5) * (1.0 / 9007199254740992.0);
+    double z = scale > 0.0 ? (x_in[r] - center) / scale : 0.0;
     double y = b * inv_norm(p);
-    y += a * z[r];
+    y += a * z;
     out[r] = y + mean;
   }
   SAVE_S;
   if (lognormal) for (i64 r = 0; r < m; r++) out[r] = det_exp(out[r]);
+}
+
+// birthdate: dia sorteado uniforme em [lower[a], upper[a]] (dias desde 1970) para a idade a de cada linha. O sorteio
+// e o de dg_rand_f64(0, 1): o mesmo resultado do calculo em numpy que veio antes, so que numa passada.
+DG_EXPORT void dg_birthdate(u64* s, const i64* ages, const i64* lower, const i64* upper, i64 m, i32* out) {
+  LOAD_S; const double sc = 1.0 * (1.0 / 9007199254740992.0);
+  for (i64 r = 0; r < m; r++) {
+    NEXT_X(); double u = 0.0 + (double)(x >> 11) * sc;
+    i64 age = ages[r], lo = lower[age], span = upper[age] - lo + 1;
+    out[r] = (i32)(lo + (i64)(u * (double)span));
+  }
+  SAVE_S;
 }
 
 // exp deterministico, para o Python (parametros derivados, ex.: media da lognormal) sem o exp do sistema
