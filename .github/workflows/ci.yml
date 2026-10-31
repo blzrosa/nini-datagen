@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      - run: uv run python tools/gen_bindings.py --check
+
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      # compila o C++ (scikit-build-core + CMake) e instala o pacote no ambiente
+      - run: uv sync
+      - run: uv run pytest -m "not bench" --cov --cov-report=term-missing
+
+  sanitizers:
+    # AddressSanitizer + UBSan nos kernels: pega escrita fora do buffer, que o ctypes não detecta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --no-install-project
+      - name: build com sanitizers
+        run: |
+          cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
+          cmake --build build/asan
+      - name: testes
+        env:
+          NINI_DATAGEN_LIB: ${{ github.workspace }}/build/asan/libdatagen.so
+          PYTHONPATH: src
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          export LD_PRELOAD="$(g++ -print-file-name=libasan.so)"
+          uv run pytest -m "not bench" -q -p no:cacheprovider

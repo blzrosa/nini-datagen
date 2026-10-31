@@ -1,0 +1,55 @@
+name: wheels
+
+# Gera os wheels (um por sistema/arquitetura, tag py3-none-<plataforma>) e o sdist. Publica no PyPI ao criar uma
+# release no GitHub (publicação confiável/OIDC: configure o projeto "nini-datagen" no PyPI para este workflow).
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  pull_request:
+    paths: [CMakeLists.txt, pyproject.toml, "cpp/**", ".github/workflows/wheels.yml"]
+
+jobs:
+  wheels:
+    name: wheel ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-24.04-arm: aarch64 nativo (sem QEMU); macos-13: x86_64; macos-14: arm64
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-13, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pypa/cibuildwheel@v3.1
+        env:
+          CIBW_ARCHS_LINUX: ${{ matrix.os == 'ubuntu-24.04-arm' && 'aarch64' || 'x86_64' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build --sdist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    if: github.event_name == 'release'
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1

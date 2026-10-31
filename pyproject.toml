@@ -1,0 +1,140 @@
+[build-system]
+requires = ["scikit-build-core>=0.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "nini-datagen"
+version = "0.2.0.dev0"
+description = "Dados sintéticos realistas do Brasil em escala: kernels C++ que escrevem direto em Polars."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE", "DATA_LICENSES.md"]
+authors = [{ name = "Nini (blzrosa)" }]
+keywords = ["fake data", "synthetic data", "dados sintéticos", "polars", "cpf", "cnpj", "brasil", "testing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: Portuguese (Brazilian)",
+    "Operating System :: OS Independent",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=1.24",
+    "polars>=1.30",
+    "pydantic>=2.7",
+    "platformdirs>=3",
+    # embrulha os buffers do C++ como Arrow; a fase 2 do plano investiga tirar isto (interface PyCapsule do Arrow)
+    "pyarrow>=14",
+]
+
+[project.urls]
+Repository = "https://github.com/blzrosa/nini-datagen"
+Issues = "https://github.com/blzrosa/nini-datagen/issues"
+Changelog = "https://github.com/blzrosa/nini-datagen/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "scipy>=1.10",
+    "datacompolars>=0.4.3",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+    "pre-commit>=3.5",
+]
+
+# ------------------------------------------------------------------ uv
+[tool.uv]
+# `uv sync` / `uv run` recompilam o pacote (C++ incluído) quando algum destes arquivos muda
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "CMakeLists.txt" },
+    { file = "cpp/*.cpp" },
+    { file = "cpp/*.hpp" },
+    { file = "cpp/*.h" },
+]
+
+# ------------------------------------------------------------------ build (C++ via CMake)
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.version = ">=3.20"
+cmake.build-type = "Release"
+# a biblioteca é carregada por ctypes (não é uma extensão do CPython): um wheel por sistema/arquitetura, válido para
+# qualquer Python >= 3.11 (tag py3-none-<plataforma>)
+wheel.py-api = "py3"
+wheel.packages = ["src/nini_datagen"]
+build-dir = "build/{wheel_tag}"
+sdist.include = ["cpp/*.cpp", "cpp/*.hpp", "cpp/*.h", "CMakeLists.txt", "DATA_LICENSES.md"]
+sdist.exclude = [".github", "build", "benchmarks", "tools/data"]
+
+[tool.scikit-build.cmake.define]
+# DG_NATIVE=ON compila com -march=native (só para medir na própria máquina; nunca para publicar)
+DG_NATIVE = { env = "DG_NATIVE", default = "OFF" }
+
+[tool.cibuildwheel]
+# um wheel por plataforma basta (tag py3); testa nele com o Python mais antigo suportado
+build = "cp311-*"
+skip = ["*-musllinux_i686", "*-win32", "*-manylinux_i686"]
+test-groups = ["dev"]
+test-command = "pytest {project}/tests -q -m \"not bench\" -p no:cacheprovider"
+build-frontend = "build[uv]"
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]  # o workflow troca para aarch64 no runner ARM (sem emulação)
+
+[tool.cibuildwheel.macos]
+archs = ["native"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
+# ------------------------------------------------------------------ qualidade
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests", "tools"]
+extend-exclude = ["src/nini_datagen/_signatures.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PT", "N", "PL", "PERF", "C4"]
+ignore = [
+    "PLR0913",  # kernels C têm muitos argumentos
+    "PLR2004",  # números mágicos são comuns em geração de dados (DV, faixas)
+    "RUF001", "RUF002", "RUF003",  # textos em português com acentos e símbolos
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "N802", "N803", "N806"]  # V/D/P: nomes dos buffers do Arrow e do atalho de ponteiro
+
+[tool.pyright]
+pythonVersion = "3.11"
+include = ["src", "tests", "tools"]
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+markers = [
+    "bench: benchmarks de desempenho (rodar com -m bench)",
+    "slow: testes demorados",
+]
+
+[tool.coverage.run]
+source = ["nini_datagen"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]

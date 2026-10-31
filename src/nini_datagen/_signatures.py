@@ -1,0 +1,43 @@
+"""Tipos dos argumentos de cada função da biblioteca C++ (GERADO por tools/gen_bindings.py; não edite)."""
+from __future__ import annotations
+
+from ctypes import c_double, c_float, c_int, c_int64, c_uint8, c_uint16, c_uint32, c_uint64, c_void_p
+
+ABI_VERSION = 1
+
+# nome: (tipo de retorno, [tipos dos argumentos])
+SIGNATURES = {
+    "dg_cep_views": (None, [c_void_p, c_uint32, c_void_p, c_int, c_int64, c_void_p]),
+    "dg_cep_views_uf": (None, [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_int, c_int64, c_void_p]),
+    "dg_empresa_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p, c_void_p]),
+    "dg_veiculo_idx": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_void_p, c_uint32, c_void_p, c_int64, c_void_p, c_void_p, c_void_p]),
+    "dg_cpf_from_base": (None, [c_void_p, c_int64, c_int, c_void_p, c_void_p]),
+    "dg_cpf_affine": (None, [c_uint32, c_uint32, c_int64, c_int, c_void_p, c_void_p]),
+    "dg_cpf_random": (None, [c_void_p, c_int64, c_int, c_void_p, c_void_p]),
+    "dg_cnpj_gen": (None, [c_void_p, c_int, c_uint32, c_uint32, c_int, c_int, c_uint64, c_uint64, c_int64, c_void_p, c_void_p]),
+    "dg_id_views": (None, [c_void_p, c_int, c_int, c_int64, c_void_p, c_void_p, c_int]),
+    "dg_uuid_views": (None, [c_void_p, c_int64, c_void_p, c_void_p]),
+    "dg_ipv4_views": (None, [c_void_p, c_int, c_int64, c_void_p, c_void_p]),
+    "dg_url_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p, c_void_p]),
+    "dg_alias_build": (None, [c_void_p, c_uint32, c_void_p]),
+    "dg_bool_bits": (None, [c_void_p, c_uint64, c_int64, c_void_p]),
+    "dg_rand_i64": (None, [c_void_p, c_int64, c_uint64, c_int64, c_void_p]),
+    "dg_rand_i32": (None, [c_void_p, c_int, c_uint32, c_int64, c_void_p]),
+    "dg_rand_f64": (None, [c_void_p, c_double, c_double, c_int64, c_void_p]),
+    "dg_rand_f32": (None, [c_void_p, c_float, c_float, c_int64, c_void_p]),
+    "dg_rand_normal": (None, [c_void_p, c_double, c_double, c_int, c_int64, c_void_p]),
+    "dg_alias_idx": (None, [c_uint32, c_void_p, c_void_p, c_int64, c_void_p]),
+    "dg_choice_views": (None, [c_void_p, c_uint32, c_void_p, c_int64, c_void_p]),
+    "dg_choice_alias_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_int64, c_void_p]),
+    "dg_choice_alias_views_by": (None, [c_void_p, c_uint32, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p]),
+    "dg_phone_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_uint64, c_int, c_int64, c_void_p, c_void_p, c_void_p]),
+    "dg_email_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_void_p, c_int, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]),
+    "dg_gather_views": (None, [c_void_p, c_void_p, c_int64, c_void_p]),
+    "dg_xoshiro_streams": (None, [c_void_p, c_int64, c_int64, c_void_p]),
+    "dg_init": (c_int, []),
+    "dg_abi_version": (c_int, []),
+    "dg_text_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_uint32, c_uint32, c_uint32, c_uint32, c_int64, c_void_p, c_void_p]),
+    "dg_template_views": (None, [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_uint32, c_uint32, c_int, c_int64, c_void_p, c_void_p]),
+}
+
+__all__ = ['ABI_VERSION', 'SIGNATURES', 'c_double', 'c_float', 'c_int', 'c_int64', 'c_uint8', 'c_uint16', 'c_uint32', 'c_uint64', 'c_void_p']

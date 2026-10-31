@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+*.egg-info/
+
+# build do C++ (scikit-build-core / CMake manual)
+build/
+*.so
+*.dylib
+*.dll
+*.pyd
+
+# dados baixados e intermediários das ferramentas
+tools/data/
+
+# editores e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

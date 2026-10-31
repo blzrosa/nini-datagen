@@ -1,0 +1,45 @@
+// tables.cpp -- tabelas compartilhadas (dígitos, DV do CPF, hexadecimal) e inicialização
+// Parte do nini-datagen (kernels C++ com ABI em C; veja datagen.h).
+#include "common.hpp"
+
+u32 T4[10000], T3[1000], T3dot[1000], T3dash[1000], T2[100];
+u16 PA[10000], PB[10000], PC[10], PG[3][1000];   // contribuições (A + B<<5) por grupo: (4,4,1) e (3,3,3)
+u8 DV3[(30 << 5) + 31];
+static bool ready = false;
+
+static u32 dvf(u32 v) { u32 r = v % 11; return r < 2 ? 0 : 11 - r; }
+static u16 contrib(int pos, int k, int v) {
+  int A = 0, B = 0, dg[4], t = v;
+  for (int j = k - 1; j >= 0; j--) { dg[j] = t % 10; t /= 10; }
+  for (int j = 0; j < k; j++) { A += dg[j] * (10 - (pos + j)); B += dg[j] * (11 - (pos + j)); }
+  return (u16)((A % 11) + ((B % 11) << 5));
+}
+
+void init_cpf() {
+  if (ready) return;
+  for (int i = 0; i < 10000; i++) {
+    u32 v = 0; int div[4] = {1000, 100, 10, 1};
+    for (int k = 0; k < 4; k++) v |= (u32)('0' + (i / div[k]) % 10) << (8 * k);
+    T4[i] = v; PA[i] = contrib(0, 4, i); PB[i] = contrib(4, 4, i);
+  }
+  for (int i = 0; i < 1000; i++) {
+    u32 v = (u32)('0' + i / 100) | ((u32)('0' + (i / 10) % 10) << 8) | ((u32)('0' + i % 10) << 16);
+    T3[i] = v; T3dot[i] = v | ((u32)'.' << 24); T3dash[i] = v | ((u32)'-' << 24);
+    for (int g = 0; g < 3; g++) PG[g][i] = contrib(3 * g, 3, i);
+  }
+  for (int i = 0; i < 100; i++) T2[i] = (u32)('0' + i / 10) | ((u32)('0' + i % 10) << 8);
+  for (int v = 0; v < 10; v++) PC[v] = contrib(8, 1, v);
+  for (int S = 0; S < (int)sizeof(DV3); S++) { u32 d1 = dvf(S & 31); u32 d2 = dvf((S >> 5) + 2 * d1); DV3[S] = (u8)(d1 * 10 + d2); }
+  ready = true;
+}
+
+static const char HEXD[] = "0123456789abcdef";
+u16 H2[256];
+static bool h2_ready = false;
+void init_h2() { if (h2_ready) return; for (int i = 0; i < 256; i++) H2[i] = (u16)((u8)HEXD[i >> 4] | ((u16)(u8)HEXD[i & 15] << 8)); h2_ready = true; }
+
+// Inicializa TODAS as tabelas de uma vez. O Python chama isto ao carregar a biblioteca, ANTES de usar threads: as
+// inicializações preguiçosas dentro dos kernels seriam uma corrida de dados entre threads (e, em CPUs com memória
+// fracamente ordenada, outra thread poderia ver a flag "pronto" antes das tabelas).
+DG_EXPORT int dg_init() { init_cpf(); init_cnpj(); init_h2(); init_ip(); return 1; }
+DG_EXPORT int dg_abi_version() { return DG_ABI_VERSION; }
