@@ -6,6 +6,7 @@
 #error "nini-datagen assume CPU little-endian (x86-64, ARM64): as views do Arrow e os u32 são montados byte a byte"
 #endif
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #if defined(_MSC_VER) && !defined(__clang__)

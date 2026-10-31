@@ -9,7 +9,8 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import NamedTuple, TypeVar
+from dataclasses import dataclass
+from typing import TypeVar
 
 __all__ = ["BLOCK_ROWS", "THREADS_ENV", "Block", "map_blocks", "resolve_threads", "split"]
 
@@ -19,7 +20,8 @@ THREADS_ENV = "NINI_DATAGEN_THREADS"
 T = TypeVar("T")
 
 
-class Block(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class Block:
     index: int  # índice do bloco no fluxo (define o estado do gerador)
     start: int  # primeira linha do bloco
     rows: int  # quantidade de linhas (BLOCK_ROWS, exceto no último)

@@ -5,7 +5,7 @@
 #pragma once
 #include <stdint.h>
 
-#define DG_ABI_VERSION 1
+#define DG_ABI_VERSION 3
 
 // DG_API: exportada ao compilar a biblioteca (DG_BUILDING), importada ao usá-la de outro código C/C++
 #if defined(_WIN32)
@@ -57,6 +57,10 @@ DG_API void dg_choice_alias_views_by(const uint32_t* dv, uint32_t kf, uint32_t k
 DG_API void dg_phone_views(uint64_t* st, uint32_t k, const uint64_t* ddd_tab, const uint16_t* ddd_chars, uint64_t mobile_thr, int style, int64_t m, uint32_t* V, uint8_t* D, const uint32_t* ddd_row);
 DG_API void dg_email_views(uint64_t* st, uint32_t kf, const uint8_t* fch, const uint8_t* fln, uint32_t kl, const uint8_t* lch, const uint8_t* lln, const uint32_t* sty_thr, const uint8_t* sty_tab, int with_domain, uint32_t kd, const uint64_t* dtab, const uint8_t* dch, const uint8_t* dln, int64_t m, uint32_t* V, uint32_t* V2, uint8_t* D, uint32_t* idxF, uint32_t* idxL);
 DG_API void dg_gather_views(const uint32_t* dv, const uint32_t* idx, int64_t m, uint32_t* V);
+DG_API void dg_alias_idx_by(uint32_t kf, uint32_t km, const uint64_t* tab, const uint8_t* isf, uint64_t* s, int64_t m, uint32_t* out);
+DG_API int64_t dg_join_size(int64_t m, int k, const uint32_t* const* dv, const uint32_t* const* idx, uint32_t seplen);
+DG_API void dg_join_views(int64_t m, int k, const uint32_t* const* dv, const uint8_t* const* datas, const uint32_t* const* idx, const uint8_t* sep, uint32_t seplen, uint32_t buf, uint32_t* V, uint8_t* D);
+DG_API int64_t dg_sex_mask(const uint32_t* V, const uint8_t* valid, int64_t bit_offset, int64_t m, uint8_t* out);
 
 /* rng.cpp */
 DG_API void dg_xoshiro_streams(const uint64_t* seed, int64_t first, int64_t count, uint64_t* out);

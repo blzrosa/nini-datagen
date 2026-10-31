@@ -59,7 +59,8 @@ DG_EXPORT void dg_choice_alias_views_by(const u32* dv, u32 kf, u32 km, const u64
   for (i64 r = 0; r < m; r++) {
     u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17;
     s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
-    u32 f = isf[r] != 0, k = f ? kf : km, base = f ? 0u : kf;
+    // sem desvio: com sexos misturados, o `?:` erraria a previsão em metade das linhas (custava ~5 ns/linha)
+    u32 msk = 0u - (u32)(isf[r] != 0), k = km ^ ((kf ^ km) & msk), base = kf & ~msk;
     u32 i = (u32)(((x >> 32) * (u64)k) >> 32);
     u64 e = tab[(size_t)base + i];
     u32 al = (u32)(e >> 32), mask = 0u - (u32)((u32)x < (u32)e);
@@ -173,4 +174,112 @@ DG_EXPORT void dg_email_views(u64* st, u32 kf, const u8* fch, const u8* fln, u32
 // V[r] = dv[idx[r]] (copia as views do dicionario pelos indices dados)
 DG_EXPORT void dg_gather_views(const u32* dv, const u32* idx, i64 m, u32* V) {
   for (i64 r = 0; r < m; r++) memcpy(V + 4 * r, dv + 4 * (size_t)idx[r], 16);
+}
+
+// Como dg_choice_alias_views_by, mas devolve o índice escolhido (no vocabulário concatenado: o primeiro grupo em
+// [0, kf), o segundo em [kf, kf + km)) em vez de copiar a view. Consome o gerador exatamente igual.
+DG_EXPORT void dg_alias_idx_by(u32 kf, u32 km, const u64* tab, const u8* isf, u64* s, i64 m, u32* out) {
+  u64 s0 = s[0], s1 = s[1], s2 = s[2], s3 = s[3];
+  for (i64 r = 0; r < m; r++) {
+    u64 x = rotl(s0 + s3, 23) + s0, t = s1 << 17;
+    s2 ^= s0; s3 ^= s1; s1 ^= s2; s0 ^= s3; s2 ^= t; s3 = rotl(s3, 45);
+    // sem desvio: com sexos misturados, o `?:` erraria a previsão em metade das linhas (custava ~5 ns/linha)
+    u32 msk = 0u - (u32)(isf[r] != 0), k = km ^ ((kf ^ km) & msk), base = kf & ~msk;
+    u32 i = (u32)(((x >> 32) * (u64)k) >> 32);
+    u64 e = tab[(size_t)base + i];
+    u32 al = (u32)(e >> 32), mask = 0u - (u32)((u32)x < (u32)e);
+    out[r] = base + (al ^ ((i ^ al) & mask));
+  }
+  s[0] = s0; s[1] = s1; s[2] = s2; s[3] = s3;
+}
+
+// ===================================================================== junção de textos
+// Junta k partes de texto linha a linha, com `sep` entre elas; parte vazia (len 0) é pulada, sem separador. Usado pelo
+// nome completo (e, depois, pelo endereço). Cada parte p é um vocabulário (views dv[p], texto datas[p]) e um índice
+// por linha (idx[p]): a linha r usa a palavra dv[p][idx[p][r]].
+//
+// Cópia em pedaços fixos de 16 bytes (sem chamar memcpy de tamanho variável, que custava mais que o resto): por isso
+// o chamador garante 16 bytes de folga depois do texto de cada vocabulário, uma view a mais no fim de cada um (a
+// leitura de um texto curto, que mora dentro da view, passa para a seguinte) e 16 bytes de folga no buffer de saída.
+static inline const u8* view_bytes(const u32* v, const u8* data) {
+  return v[0] <= 12 ? (const u8*)(v + 1) : data + v[3];
+}
+static inline void copy16(u8* dst, const u8* src, u32 len) {
+  for (u32 i = 0; i < len; i += 16) memcpy(dst + i, src + i, 16);
+}
+
+// Bytes que dg_join_views vai escrever no buffer de texto (só as linhas com mais de 12 bytes vão para lá).
+DG_EXPORT i64 dg_join_size(i64 m, int k, const u32* const* dv, const u32* const* idx, u32 seplen) {
+  i64 total = 0;
+  for (i64 r = 0; r < m; r++) {
+    u32 len = 0, parts = 0;
+    for (int p = 0; p < k; p++) {
+      u32 l = dv[p][4 * (size_t)idx[p][r]];
+      len += l; parts += l != 0;
+    }
+    if (parts > 1) len += seplen * (parts - 1);
+    if (len > 12) total += len;
+  }
+  return total;
+}
+
+// Escreve as views (V, m x 4) e o texto das linhas longas em D (tamanho de dg_join_size + 16 de folga), com índice de
+// buffer `buf` (cada bloco de linhas tem o seu buffer).
+DG_EXPORT void dg_join_views(i64 m, int k, const u32* const* dv, const u8* const* datas, const u32* const* idx,
+                             const u8* sep, u32 seplen, u32 buf, u32* V, u8* D) {
+  u64 off = 0;
+  u8 small[48];
+  for (i64 r = 0; r < m; r++) {
+    u32 len = 0, parts = 0;
+    for (int p = 0; p < k; p++) {
+      u32 l = dv[p][4 * (size_t)idx[p][r]];
+      len += l; parts += l != 0;
+    }
+    if (parts > 1) len += seplen * (parts - 1);
+    u8* dst = len <= 12 ? small : D + off;
+    u32 w = 0;
+    bool first = true;
+    for (int p = 0; p < k; p++) {
+      const u32* pv = dv[p] + 4 * (size_t)idx[p][r];
+      u32 l = pv[0];
+      if (!l) continue;
+      if (!first) { copy16(dst + w, sep, seplen); w += seplen; }  // sep também com 16 bytes de folga
+      copy16(dst + w, view_bytes(pv, datas[p]), l);
+      w += l;
+      first = false;
+    }
+    u32* v = V + 4 * r;
+    v[0] = len;
+    if (len <= 12) {
+      memset(small + len, 0, 12 - len);  // o Arrow pede zeros depois do texto curto
+      memcpy(v + 1, small, 12);
+    } else {
+      memcpy(v + 1, dst, 4);
+      v[2] = buf;
+      v[3] = (u32)off;
+      off += len;
+    }
+  }
+}
+
+// ===================================================================== coluna de sexo -> máscara
+// Lê a coluna de sexo direto das views do Arrow (sem passar pelo Python): out[r] = 1 se o texto começa com F/f, 0 se
+// começa com M/m, 2 se é nulo, vazio ou começa com outra coisa. O primeiro byte está sempre no byte 4 da view (texto
+// curto inline ou prefixo do texto longo). `valid`: bits de validade do Arrow (nullptr = sem nulos), a partir do bit
+// `bit_offset`. Devolve quantas linhas ficaram com 2 (desconhecidas).
+DG_EXPORT i64 dg_sex_mask(const u32* V, const u8* valid, i64 bit_offset, i64 m, u8* out) {
+  i64 unknown = 0;
+  for (i64 r = 0; r < m; r++) {
+    const u32* v = V + 4 * r;
+    u8 c = (u8)(v[1] & 0xFF) | 0x20;  // minúscula (só importa para F/M)
+    bool ok = v[0] != 0;
+    if (valid) {
+      i64 b = bit_offset + r;
+      ok = ok && ((valid[b >> 3] >> (b & 7)) & 1);
+    }
+    u8 res = !ok ? 2 : c == 'f' ? 1 : c == 'm' ? 0 : 2;
+    out[r] = res;
+    unknown += res == 2;
+  }
+  return unknown;
 }

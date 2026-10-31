@@ -34,7 +34,7 @@ def new_seed() -> int:
     return int(np.random.SeedSequence().entropy)  # type: ignore[arg-type]
 
 
-def _check_seed(seed: int) -> int:
+def _check_seed(seed: int | np.integer) -> int:
     if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)):
         raise TypeError(f"seed deve ser um inteiro, não {type(seed).__name__}")
     seed = int(seed)
@@ -43,7 +43,7 @@ def _check_seed(seed: int) -> int:
     return seed
 
 
-def seed_state(seed: int, stream: str) -> np.ndarray:
+def seed_state(seed: int | np.integer, stream: str) -> np.ndarray:
     """Estado inicial (4 x uint64) do xoshiro256++ para (semente, fluxo). Nunca é todo zero."""
     ss = np.random.SeedSequence([_check_seed(seed), stream_key(stream)])
     state = ss.generate_state(4, np.uint64)

@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CPP = ROOT / "cpp"
 HEADER = CPP / "datagen.h"
 SIGS = ROOT / "src" / "nini_datagen" / "_signatures.py"
-ABI_VERSION = 1
+ABI_VERSION = 3
 
 C_TYPES = {"u64": "uint64_t", "u32": "uint32_t", "u16": "uint16_t", "u8": "uint8_t", "i64": "int64_t"}
 CTYPES = {
@@ -37,9 +37,9 @@ def exported() -> list[tuple[str, str, str, list[str]]]:
     out = []
     for f in sorted(CPP.glob("*.cpp")):
         text = f.read_text(encoding="utf-8")
-        for m in re.finditer(r"DG_EXPORT (int|void) (dg_\w+)\(((?:[^{])*?)\)\s*\{", text, flags=re.DOTALL):
+        for m in re.finditer(r"DG_EXPORT (int|void|i64) (dg_\w+)\(((?:[^{])*?)\)\s*\{", text, flags=re.DOTALL):
             args = [_c(a.strip()) for a in re.sub(r"\s+", " ", m.group(3)).split(",") if a.strip()]
-            out.append((f.name, m.group(1), m.group(2), args))
+            out.append((f.name, _c(m.group(1)), m.group(2), args))
     return out
 
 
@@ -108,7 +108,7 @@ def signatures(funcs) -> str:
         "SIGNATURES = {",
     ]
     for _, ret, name, args in funcs:
-        r = "c_int" if ret == "int" else "None"
+        r = {"int": "c_int", "int64_t": "c_int64", "void": "None"}[ret]
         lines.append(f'    "{name}": ({r}, [{", ".join(ctype_of(a) for a in args)}]),')
     lines += [
         "}",

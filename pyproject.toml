@@ -62,6 +62,8 @@ cache-keys = [
     { file = "cpp/*.cpp" },
     { file = "cpp/*.hpp" },
     { file = "cpp/*.h" },
+    { env = "DG_CLANGCL" },
+    { env = "DG_NATIVE" },
 ]
 
 # ------------------------------------------------------------------ build (C++ via CMake)
@@ -81,6 +83,14 @@ sdist.exclude = [".github", "build", "benchmarks", "tools/data"]
 # DG_NATIVE=ON compila com -march=native (só para medir na própria máquina; nunca para publicar)
 DG_NATIVE = { env = "DG_NATIVE", default = "OFF" }
 
+[[tool.scikit-build.overrides]]
+# Windows com DG_CLANGCL=1: compila com clang-cl (o clang com a interface do MSVC) em vez do MSVC. Gera código bem
+# mais rápido nos kernels; é o que os wheels publicados usam. Precisa, no Visual Studio Installer, dos componentes
+# "C++ Clang Compiler for Windows" e "MSBuild support for LLVM (clang-cl) toolset".
+if.platform-system = "^win32"
+if.env.DG_CLANGCL = true
+cmake.args = ["-T", "ClangCL"]
+
 [tool.cibuildwheel]
 # um wheel por plataforma basta (tag py3); testa nele com o Python mais antigo suportado
 build = "cp311-*"
@@ -98,6 +108,7 @@ environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
+environment = { DG_CLANGCL = "1" }
 
 # ------------------------------------------------------------------ qualidade
 [tool.ruff]
@@ -124,7 +135,7 @@ typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--strict-markers", "--strict-config", "-ra"]
+addopts = ["--strict-markers", "--strict-config", "-ra", "-m", "not bench"]  # benchmarks: pytest -m bench -s
 markers = [
     "bench: benchmarks de desempenho (rodar com -m bench)",
     "slow: testes demorados",

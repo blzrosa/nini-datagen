@@ -19,6 +19,7 @@ from .conftest import as_str
 
 M = 20_000
 NO_TP = 0xFFFFFFFF
+KNOWN_NORMAL_DIGESTS = ["756a820481c19bfb", "20d70a42aa04940c"]  # normal, lognormal (veja test_normal_known_bits)
 
 
 def _dv_cpf(d: list[int]) -> tuple[int, int]:
@@ -191,3 +192,88 @@ def test_same_state_same_output(lib, P):
         lib.dg_uuid_views(P(st), M, P(V), P(D))
         outs.append((V.copy(), D[: used_bytes(V)].copy(), st.copy()))
     assert all(np.array_equal(a, b) for a, b in zip(outs[0], outs[1], strict=True))
+
+
+def test_normal_matches_reference_quantiles(lib, P):
+    """normal = Φ⁻¹(p) com p tirado do xoshiro; confere contra o scipy (inclusive a cauda, onde entra o log próprio)."""
+    stats = pytest.importorskip("scipy.stats")
+    from .test_rng import _next  # noqa: PLC0415
+
+    st = seed_state(5, "normal-ref")
+    ref = [int(x) for x in st]
+    n = 20_000
+    out = np.empty(n)
+    lib.dg_rand_normal(P(st), 0.0, 1.0, 0, n, P(out))
+    p = np.array([((_next(ref) >> 11) + 0.5) / 2**53 for _ in range(n)])
+    expected = stats.norm.ppf(p)
+    assert np.allclose(out, expected, rtol=2e-9, atol=1e-12)
+    tail = (p < 0.02425) | (p > 1 - 0.02425)
+    assert tail.sum() > 500  # a cauda foi exercitada
+    st2 = seed_state(5, "normal-ref")
+    logn = np.empty(n)
+    lib.dg_rand_normal(P(st2), 0.0, 1.0, 1, n, P(logn))
+    assert np.allclose(logn, np.exp(out), rtol=1e-12)
+
+
+def test_normal_known_bits(lib, P):
+    """Resumo dos bits de 20 mil saídas: o mesmo em todo sistema e compilador (sem std::log/exp, sem FMA). Se mudar, a
+    mesma semente passou a dar outro resultado (quebra a reprodutibilidade da v0.2.0)."""
+    import hashlib  # noqa: PLC0415
+
+    digests = []
+    for lognormal in (0, 1):
+        st = np.array([1, 2, 3, 4], np.uint64) * np.uint64(0x9E3779B97F4A7C15)
+        out = np.empty(20_000)
+        lib.dg_rand_normal(P(st), 0.0, 1.0, lognormal, len(out), P(out))
+        digests.append(hashlib.blake2b(out.tobytes(), digest_size=8).hexdigest())
+    assert digests == KNOWN_NORMAL_DIGESTS
+
+
+def test_alias_idx_by_matches_views_by(lib, P):
+    """O índice por grupo consome o gerador igual à escolha de views por grupo (o full_name depende disso)."""
+    from nini_datagen.core.tables import Vocabulary, alias_table  # noqa: PLC0415
+
+    words = [f"palavra{i}" for i in range(7)] + ["uma palavra bem comprida"] * 1 + [f"outra{i}" for i in range(5)]
+    vocab = Vocabulary.from_strings(words)
+    kf, km = 8, 5
+    tab = np.concatenate([alias_table(np.arange(1, kf + 1)), alias_table(np.arange(km, 0, -1))])
+    isf = (np.random.default_rng(1).random(M) < 0.5).astype(np.uint8)
+    s1, s2 = seed_state(9, "by"), seed_state(9, "by")
+    V, idx = empty_views(M), np.empty(M, np.uint32)
+    lib.dg_choice_alias_views_by(P(vocab.views), kf, km, P(tab), P(isf), P(s1), M, P(V))
+    lib.dg_alias_idx_by(kf, km, P(tab), P(isf), P(s2), M, P(idx))
+    assert np.array_equal(s1, s2)
+    assert decode(V, vocab.data) == [words[i].encode() for i in idx]
+    assert ((idx < kf) == isf.astype(bool)).all()
+
+
+def test_join_views(lib, P):
+    from nini_datagen.core.tables import Vocabulary  # noqa: PLC0415
+
+    rng = np.random.default_rng(3)
+    a = Vocabulary.from_strings(["Ana", "Maria", "Conceição", "Maximiliano Augusto"])
+    b = Vocabulary.from_strings(["Silva", "de Jesus", "Bitencourt", "X" * 40])
+    m = 5000
+    ia = rng.integers(0, len(a) + 1, m).astype(np.uint32)  # len(vocab) = parte vazia
+    ib = rng.integers(0, len(b) + 1, m).astype(np.uint32)
+    ia[:3], ib[:3] = len(a), len(b)  # linhas totalmente vazias
+    pad = np.zeros(16, np.uint8)
+    dvs = [np.vstack([v.views, np.zeros((1, 4), np.uint32)]) for v in (a, b)]
+    texts = [np.concatenate([v.data if v.data is not None else pad[:0], pad]) for v in (a, b)]
+    dv_ptrs = np.array([P(d) for d in dvs], np.uint64)
+    data_ptrs = np.array([P(t) for t in texts], np.uint64)
+    idx_ptrs = np.array([P(ia), P(ib)], np.uint64)
+    sep = np.frombuffer(b" - " + bytes(16), np.uint8).copy()
+    size = lib.dg_join_size(m, 2, P(dv_ptrs), P(idx_ptrs), 3)
+    buf, V = np.full(size + 16, 255, np.uint8), empty_views(m)
+    lib.dg_join_views(m, 2, P(dv_ptrs), P(data_ptrs), P(idx_ptrs), P(sep), 3, 0, P(V), P(buf))
+    got = decode(V, buf[:size])
+    wa, wb = [*a.strings, ""], [*b.strings, ""]
+    want = [" - ".join(x for x in (wa[i], wb[j]) if x).encode() for i, j in zip(ia, ib, strict=True)]
+    assert got == want
+    assert used_bytes(V) == size
+    raw = V.view(np.uint8).reshape(-1, 16)
+    for r in range(m):  # o Arrow pede zeros depois de um texto curto
+        n = int(V[r, 0])
+        if n <= 12:
+            assert not raw[r, 4 + n :].any()

@@ -31,12 +31,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.11", "3.12", "3.13", "3.14"]
+    env:  # no nível do job: o `uv run` recompilaria se a variável mudasse entre os passos
+      DG_CLANGCL: ${{ matrix.python != '3.11' && '1' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
-      # compila o C++ (scikit-build-core + CMake) e instala o pacote no ambiente
+      # compila o C++ (scikit-build-core + CMake) e instala o pacote no ambiente. No Windows, clang-cl (como os
+      # wheels), menos no Python 3.11, que fica com o MSVC para os dois compiladores serem testados.
       - run: uv sync
       - run: uv run pytest -m "not bench" --cov --cov-report=term-missing
 

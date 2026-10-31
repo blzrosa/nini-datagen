@@ -33,3 +33,12 @@ def digits(s: str) -> list[int]:
 
 def u8(n: int) -> np.ndarray:
     return np.zeros(n, np.uint8)
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--record-golden",
+        action="store_true",
+        default=False,
+        help="grava (sobrescreve) os gabaritos em tests/golden/ em vez de comparar",
+    )

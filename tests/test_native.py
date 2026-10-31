@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import subprocess
 import sys
 from pathlib import Path
@@ -51,7 +52,11 @@ def test_env_var_missing_file(monkeypatch, tmp_path):
 
 def test_wrong_library_is_rejected(monkeypatch):
     """Uma biblioteca compartilhada qualquer (a do próprio numpy) não passa pela checagem."""
-    other = Path(np._core._multiarray_umath.__file__ if hasattr(np, "_core") else np.core._multiarray_umath.__file__)
+    try:
+        mod = importlib.import_module("numpy._core._multiarray_umath")
+    except ImportError:  # numpy < 2
+        mod = importlib.import_module("numpy.core._multiarray_umath")
+    other = Path(str(mod.__file__))
     monkeypatch.setenv(_native.ENV_VAR, str(other))
     _native._reset()
     try:

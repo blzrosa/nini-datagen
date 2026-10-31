@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ctypes import c_double, c_float, c_int, c_int64, c_uint8, c_uint16, c_uint32, c_uint64, c_void_p
 
-ABI_VERSION = 1
+ABI_VERSION = 3
 
 # nome: (tipo de retorno, [tipos dos argumentos])
 SIGNATURES = {
@@ -33,6 +33,10 @@ SIGNATURES = {
     "dg_phone_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_uint64, c_int, c_int64, c_void_p, c_void_p, c_void_p]),
     "dg_email_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_void_p, c_int, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]),
     "dg_gather_views": (None, [c_void_p, c_void_p, c_int64, c_void_p]),
+    "dg_alias_idx_by": (None, [c_uint32, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p]),
+    "dg_join_size": (c_int64, [c_int64, c_int, c_void_p, c_void_p, c_uint32]),
+    "dg_join_views": (None, [c_int64, c_int, c_void_p, c_void_p, c_void_p, c_void_p, c_uint32, c_uint32, c_void_p, c_void_p]),
+    "dg_sex_mask": (c_int64, [c_void_p, c_void_p, c_int64, c_int64, c_void_p]),
     "dg_xoshiro_streams": (None, [c_void_p, c_int64, c_int64, c_void_p]),
     "dg_init": (c_int, []),
     "dg_abi_version": (c_int, []),
