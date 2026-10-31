@@ -4,8 +4,8 @@ Dados sintéticos realistas do Brasil, em escala: CPF, CNPJ (inclusive alfanumé
 IBGE, endereços do CNEFE, telefones, e-mails, textos e mais. Os geradores são kernels C++ que escrevem direto na
 memória do Polars (Arrow `string_view`), sem passar string por string pelo Python.
 
-> **Estado:** v0.2.0 em construção (veja [CHANGELOG.md](CHANGELOG.md)). Todos os geradores, as tabelas (`table`) e o
-> LazyFrame (`scan`) já existem; faltam dados sujos, gravação em lotes, documentação e a publicação no PyPI.
+> **Estado:** v0.2.0 em construção (veja [CHANGELOG.md](CHANGELOG.md)). Geradores, tabelas (`table`), LazyFrame
+> (`scan`), dados sujos e gravação em lotes já existem; faltam ajustes de desempenho, documentação e o PyPI.
 
 ## Uso
 
@@ -130,6 +130,26 @@ paralelo: até colunas baratas, como inteiros e booleanos, entram no paralelismo
 do Polars: ele recebe as colunas pedidas, o filtro e o limite, e gera em lotes só o que foi pedido. Cada coluna sai igual
 a `g.generate(tipo, n, name=coluna, ...)`, e `scan(n, schema).collect()` é igual a `table(n, schema)`. No `scan`, as
 expressões são avaliadas lote a lote: use expressões linha a linha (sem `mean()`, `rank()` etc.).
+
+### Dados sujos, duplicatas e arquivos grandes
+
+```python
+schema = dg.Schema(
+    {
+        "cpf": ("cpf", {"formatted": True, "dirty": {"unmask": 0.3, "whitespace": 0.02}}),
+        "nome": ("full_name", {"dirty": {"typo": 0.02, "case": 0.01, "accents": 0.05}}),
+        "valor": ("lognormal", {"mean": 5, "sigma": 1, "dirty": {"outliers": 0.001, "sentinel": [(-1, 0.01)]}}),
+        "uf": "state",
+    }
+)
+df = g.table(100_000, schema)
+com_dups = g.add_duplicates(df, 0.05, dirty={"nome": {"typo": 0.5}})  # row_id e dup_of são o gabarito
+g.write_parquet_dataset("saida/", 50_000_000, schema, partition_by="uf", rows_per_file=1_000_000)
+```
+
+Os defeitos seguem as mesmas regras de reprodutibilidade dos dados: cada um tem seu fluxo, e a coluna suja sai igual
+em `table`, `scan` e `write_parquet_dataset`. Os arquivos gravados juntos são exatamente `table(n, schema)`, para
+qualquer `batch_rows`.
 
 ## Reprodutibilidade
 

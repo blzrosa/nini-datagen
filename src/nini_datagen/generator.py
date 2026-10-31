@@ -7,7 +7,8 @@ diferentes (``g.integer(10, name="a")``, ``g.integer(10, name="b")``).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -86,6 +87,59 @@ class DataGen:
         """
         _check_n(n)
         return _scan(as_schema(schema).bind(self.locale), self._ctx, n, batch_size=batch_size)
+
+    def write_parquet_dataset(
+        self,
+        path: str | Path,
+        n: int,
+        schema: Schema | Mapping[str, Any],
+        *,
+        batch_rows: int | None = None,
+        compression: str = "zstd",
+        compression_level: int | None = None,
+        rows_per_file: int | None = None,
+        partition_by: str | Sequence[str] | None = None,
+        include_partition_columns: bool = False,
+        max_partitions: int = 2000,
+        overlap: bool = True,
+    ) -> list[Path]:
+        """Grava ``n`` linhas em Parquet, em lotes (memória de um ou dois lotes): ``path/part-00000.parquet``...
+
+        Os arquivos juntos são exatamente ``table(n, schema)``, na mesma ordem, para qualquer ``batch_rows``
+        (linhas por lote, arredondado para múltiplo de 65.536; padrão 1.048.576). Leia com
+        ``pl.scan_parquet(path)`` (ou ``hive_partitioning=True`` com partições).
+
+        * ``compression``: ``"zstd"`` (padrão, nível 1), ``"lz4"``, ``"snappy"``, ``"gzip"``, ``"brotli"`` ou
+          ``"uncompressed"``; ``compression_level`` muda o nível.
+        * ``rows_per_file``: cada arquivo com exatamente essa quantidade de linhas (o último de cada partição fica
+          menor), como o ``maxRecordsPerFile`` do Spark. Sem ele, um arquivo por lote (e por partição).
+        * ``partition_by``: coluna(s) do schema para gravar particionado no estilo Hive (``path/uf=SP/part-...``);
+          nulos vão para ``uf=__HIVE_DEFAULT_PARTITION__``. As colunas de partição ficam só no nome da pasta, a menos
+          que ``include_partition_columns=True``. ``max_partitions`` evita milhões de pastas por engano.
+        * ``overlap``: gera o lote seguinte enquanto grava o atual.
+        """
+        from .io.parquet import write_parquet_dataset as _write  # noqa: PLC0415
+
+        _check_n(n)
+        return _write(
+            path, n, as_schema(schema).bind(self.locale), self._ctx, batch_rows_=batch_rows, compression=compression,
+            compression_level=compression_level, rows_per_file=rows_per_file, partition_by=partition_by,
+            include_partition_columns=include_partition_columns, max_partitions=max_partitions, overlap=overlap,
+        )  # fmt: skip
+
+    def dirty(self, s: pl.Series, config: Any = None, /, **kwargs: Any) -> pl.Series:
+        """Suja uma coluna pronta (veja `DirtyConfig`) com a semente deste gerador."""
+        from .transforms.dirty import dirty as _dirty  # noqa: PLC0415
+
+        return _dirty(s, config, seed=self.seed, **kwargs)
+
+    def add_duplicates(
+        self, df: pl.DataFrame, p: float = 0.02, *, dirty: Mapping[str, Any] | None = None, shuffle: bool = True
+    ) -> pl.DataFrame:
+        """Cópias de linhas sorteadas, com gabarito ``row_id``/``dup_of`` (veja `transforms.add_duplicates`)."""
+        from .transforms.duplicates import add_duplicates as _dups  # noqa: PLC0415
+
+        return _dups(df, p, dirty=dirty, shuffle=shuffle, seed=self.seed)
 
     @staticmethod
     def kinds() -> list[str]:

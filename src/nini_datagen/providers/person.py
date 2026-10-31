@@ -17,7 +17,7 @@ from ..core.blocks import Block, map_blocks
 from ..core.tables import Vocabulary, alias_table
 from ..locales import FirstNames, Locale
 from ..registry import registry
-from .base import ArrayJob, Context, Job, Provider, Run, probability_threshold
+from .base import ArrayJob, Context, Job, Provider, Run, finalize, probability_threshold
 from .choice import ViewsChoiceByJob, ViewsChoiceJob, cached_alias, vocabulary
 
 __all__ = ["female_mask"]
@@ -300,7 +300,7 @@ class FullNameProvider(Provider[FullNameConfig]):
 
         parts = [(pools.by_sex, g1), (pools.by_sex, g2), (last_vocab, l1), (last_vocab, l2)]
         views, datas = join_text(run, parts, " ", threads)
-        return views_to_series(views, datas, name, self.validity(run, config))
+        return finalize(views_to_series(views, datas, name, self.validity(run, config)), run, config)
 
 
 def join_text(

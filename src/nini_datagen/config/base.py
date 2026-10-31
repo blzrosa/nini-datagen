@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .dirty import DirtyConfig
+
 __all__ = ["BaseConfig", "Probability"]
 
 
@@ -18,12 +20,14 @@ class BaseConfig(BaseModel):
       sempre igual.
     * ``null_fraction``: fração esperada de nulos, sorteados linha a linha num fluxo próprio (mudar só a fração não
       muda os valores das linhas que continuam preenchidas).
+    * ``dirty``: dados sujos (`DirtyConfig` ou dict: ``{"typo": 0.02, "unmask": 0.3}``), também em fluxos próprios.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid", validate_default=True, str_strip_whitespace=False)
 
     name: str | None = Field(default=None, min_length=1)
     null_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
+    dirty: DirtyConfig | None = None
 
     @field_validator("null_fraction")
     @classmethod

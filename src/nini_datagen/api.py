@@ -7,6 +7,7 @@ o mesmo.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -62,6 +63,7 @@ __all__ = [
     "uuid",
     "vehicle",
     "voter_id",
+    "write_parquet_dataset",
 ]
 
 
@@ -106,6 +108,20 @@ def scan(
     Sem ``seed``, a semente é sorteada uma vez aqui: coletar o mesmo LazyFrame duas vezes dá a mesma tabela.
     """
     return DataGen(seed, locale=locale, threads=threads).scan(n, schema, batch_size=batch_size)
+
+
+def write_parquet_dataset(
+    path: str | Path,
+    n: int,
+    schema: Schema | Mapping[str, Any],
+    *,
+    seed: int | None = None,
+    locale: str | Locale = "pt_BR",
+    threads: int | None = None,
+    **options: Any,
+) -> list[Path]:
+    """Grava ``n`` linhas em Parquet, em lotes; veja `DataGen.write_parquet_dataset` (as opções são as mesmas)."""
+    return DataGen(seed, locale=locale, threads=threads).write_parquet_dataset(path, n, schema, **options)
 
 
 def _shortcut(kind: str, doc: str) -> Any:

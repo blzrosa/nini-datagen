@@ -39,6 +39,7 @@ __all__ = [
     "Provider",
     "Run",
     "TextJob",
+    "finalize",
     "probability_threshold",
     "validity_bits",
 ]
@@ -96,6 +97,16 @@ class Run:
         return out
 
 
+def finalize(series: pl.Series, run: Run, config: BaseConfig) -> pl.Series:
+    """Último passo de toda coluna gerada: os dados sujos de ``config.dirty`` (se houver), nos fluxos da coluna."""
+    if config.dirty is None or config.dirty.is_empty:
+        return series
+    from ..transforms.dirty import RowStreams, apply_dirty  # noqa: PLC0415
+
+    rows = RowStreams(run.ctx.seed, run.name, run.blocks, run.first_block, run.n)
+    return apply_dirty(series, config.dirty, rows)
+
+
 @dataclass
 class Prepared:
     """Uma coluna planejada: preencha cada bloco com `fill` (em qualquer ordem, em paralelo) e monte com `finish`."""
@@ -106,6 +117,7 @@ class Prepared:
     validity: np.ndarray | None
     null_states: np.ndarray | None
     threshold: int
+    config: BaseConfig
 
     def fill(self, b: Block) -> None:
         self.job.fill(b, self.states[b.index])
@@ -114,7 +126,7 @@ class Prepared:
                                ptr(self.validity[b.start // 64 :]))  # fmt: skip
 
     def finish(self) -> pl.Series:
-        return self.job.finish(self.run.name, self.validity)
+        return finalize(self.job.finish(self.run.name, self.validity), self.run, self.config)
 
 
 class Job(ABC):
@@ -182,9 +194,8 @@ class Provider(ABC, Generic[C]):
         job = self.plan(run, config, inputs or {})
         validity = validity_bits(n, config.null_fraction)
         null_states = run.states(":null") if validity is not None else None
-        return Prepared(
-            run, job, run.states(), validity, null_states, probability_threshold(1.0 - config.null_fraction)
-        )
+        thr = probability_threshold(1.0 - config.null_fraction)
+        return Prepared(run, job, run.states(), validity, null_states, thr, config)
 
     def generate(
         self, n: int, config: C, ctx: Context, inputs: Mapping[str, Any] | None = None, first_block: int = 0

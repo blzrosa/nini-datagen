@@ -53,6 +53,20 @@ def _table() -> pl.DataFrame:
     return dg.DataGen(seed=SEED).table(N, schema)
 
 
+def _dirty() -> pl.DataFrame:
+    """Todos os defeitos de `DirtyConfig` e as duplicatas (cópias sujas, embaralhadas)."""
+    text = {"accents": 0.05, "mojibake": 0.02, "unmask": 0.3, "typo": 0.05, "truncate": 0.02, "case": 0.03,
+            "whitespace": 0.03, "null_like": 0.02}  # fmt: skip
+    schema = dg.Schema({
+        "cpf": ("cpf", {"formatted": True, "dirty": text}),
+        "nome": ("full_name", {"null_fraction": 0.05, "dirty": {**text, "unmask": 0.0}}),
+        "valor": ("lognormal", {"mean": 5, "sigma": 1, "dirty": {"outliers": 0.01, "sentinel": [(-1.0, 0.02)]}}),
+        "qtd": ("integer", {"low": 1, "high": 99, "dirty": {"outliers": 0.01, "sentinel": [(0, 0.01), (9999, 0.01)]}}),
+    })  # fmt: skip
+    g = dg.DataGen(seed=SEED)
+    return g.add_duplicates(g.table(N, schema), 0.05, dirty={"nome": {"typo": 0.5}, "cpf": {"unmask": 0.5}})
+
+
 # gabaritos ainda não gravados (esperando a conferência das amostras): sem o arquivo o teste é pulado, e o
 # --record-golden também não grava estes. Depois de conferir, tire da lista e grave.
 PENDING: set[str] = set()
@@ -60,6 +74,7 @@ PENDING: set[str] = set()
 GOLDEN_CASES: dict[str, Callable[[], pl.DataFrame]] = {name: _single(name) for name in sorted(CASES)}
 GOLDEN_CASES["people"] = _people
 GOLDEN_CASES["table"] = _table
+GOLDEN_CASES["dirty"] = _dirty
 
 
 def build(name: str) -> pl.DataFrame:

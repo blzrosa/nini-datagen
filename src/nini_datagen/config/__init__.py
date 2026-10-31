@@ -7,6 +7,7 @@ from .base import BaseConfig
 from .business import CompanyConfig, OccupationConfig, VehicleConfig
 from .choice import ChoiceConfig
 from .contact import EmailConfig, PhoneConfig, UsernameConfig
+from .dirty import DirtyConfig
 from .documents import (
     CNHConfig,
     CNPJConfig,
@@ -51,6 +52,7 @@ __all__ = [
     "CreditCardConfig",
     "DateConfig",
     "DatetimeConfig",
+    "DirtyConfig",
     "EAN13Config",
     "EmailConfig",
     "FirstNameConfig",

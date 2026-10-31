@@ -77,6 +77,15 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   escala são somas exatas (`math.fsum`), para a mesma semente dar os mesmos bits em Windows, Linux e macOS (o `np.exp`
   e o `pow` do sistema mudam o último bit conforme a máquina). ABI 8.
 
+- Fase 6, segunda parte: dados sujos em qualquer coluna (`dirty={"typo": 0.02, "unmask": 0.3}` ou `DirtyConfig`:
+  acentos, mojibake, máscara, erro de digitação, corte, maiúsculas, espaços, textos de vazio, outliers e
+  sentinelas), com fluxos próprios por defeito alinhados aos blocos (a coluna suja também sai igual em lotes);
+  `dg.dirty` para colunas prontas; `add_duplicates` (cópias exatas ou sujas, com gabarito `row_id`/`dup_of`);
+  `write_parquet_dataset` (lotes com memória limitada, `rows_per_file`, partições Hive, compressão), cujos arquivos
+  juntos são exatamente `table(n, schema)` para qualquer tamanho de lote. `tools/profile_table.py` mostra o custo de
+  cada coluna da tabela e dos endereços com a base leve e a completa.
+- CI também em Linux ARM64; wheel Intel do macOS no `macos-15-intel` (o `macos-13` foi desativado).
+
 ### Próximas fases
-- Fase 6, segunda parte: dados sujos (`dirty`), duplicatas e `write_parquet_dataset`.
-- Fase 6, terceira parte: documentação, benchmark contra MVP, Faker, Mimesis e dataforge, TestPyPI e PyPI.
+- Fase 6, terceira parte: metas de desempenho da tabela (`table_20col` ≤ 200 ns com 1 thread e ≥ 4× com 16) e dos
+  endereços com a base completa; documentação, benchmark contra MVP, Faker, Mimesis e dataforge, TestPyPI e PyPI.

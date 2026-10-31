@@ -76,6 +76,33 @@ def table_section(g: dg.DataGen) -> list[str]:
     return out
 
 
+def dirty_section(g: dg.DataGen) -> list[str]:
+    text = {"accents": 0.1, "mojibake": 0.05, "typo": 0.1, "truncate": 0.05, "case": 0.05, "whitespace": 0.05,
+            "null_like": 0.05}  # fmt: skip
+    schema = dg.Schema({
+        "nome": "full_name",
+        "nome_sujo": ("full_name", {"dirty": text}),
+        "cpf": ("cpf", {"formatted": True, "dirty": {"unmask": 0.3}}),
+        "valor": ("lognormal", {"mean": 5, "sigma": 1, "dirty": {"outliers": 0.05, "sentinel": [(-1.0, 0.05)]}}),
+    })  # fmt: skip
+    df = g.table(N_STATS, schema)
+    out = ["", "## Dados sujos", ""]
+    clean = g.full_name(N_STATS, name="nome_sujo").to_list()
+    pairs = [(a, b) for a, b in zip(clean, df["nome_sujo"].to_list(), strict=True) if a != b][:20]
+    out += [f"- `{a}` → `{b!r}`" for a, b in pairs]
+    changed = sum(1 for a, b in zip(clean, df["nome_sujo"].to_list(), strict=True) if a != b) / N_STATS
+    unmasked = df["cpf"].str.contains(r"^\d{11}$").mean()
+    out += ["", f"Nomes alterados: {changed:.1%} · CPF sem máscara: {unmasked:.1%} (pedido: 30%)"]
+    vals = df["valor"]
+    out.append(f"Valor = -1 em {(vals == -1.0).mean():.1%} (pedido: 5%); máximo {vals.max():,.0f}")
+    dups = g.add_duplicates(df.select("nome", "cpf").head(1_000), 0.1, dirty={"nome": {"typo": 0.5}})
+    d = dups.filter(pl.col("dup_of").is_not_null()).head(8)
+    orig = dict(zip(dups["row_id"].to_list(), dups["nome"].to_list(), strict=True))
+    out += ["", "Duplicatas (cópia → original):", ""]
+    out += [f"- {r} `{n}` → {o} `{orig[o]}`" for r, n, o in d.select("row_id", "nome", "dup_of").iter_rows()]
+    return [*out, ""]
+
+
 def main() -> None:
     g = dg.DataGen(seed=2026)
     out = ["# Amostras do nini-datagen", "", f"seed = {g.seed} · {dg.__version__}", ""]
@@ -172,6 +199,7 @@ def main() -> None:
     out.append("Marcas: " + ", ".join(f"{b} ({c / len(v):.1%})" for b, c in brands))
     out += address_section(g)
     out += table_section(g)
+    out += dirty_section(g)
     text = "\n".join(out) + "\n"
     print(text)
     if len(sys.argv) > 1:

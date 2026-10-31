@@ -62,6 +62,7 @@ from .api import (
     uuid,
     vehicle,
     voter_id,
+    write_parquet_dataset,
 )
 from .config import (
     AddressConfig,
@@ -109,10 +110,12 @@ from .config import (
     VehicleConfig,
     VoterIDConfig,
 )
+from .config.dirty import DirtyConfig
 from .errors import DatagenError, NativeLibraryError
 from .generator import DataGen
 from .registry import registry
 from .schema import Schema, column, ref
+from .transforms import add_duplicates, dirty
 
 try:
     __version__ = metadata.version("nini-datagen")
@@ -139,6 +142,7 @@ __all__ = [
     "DatagenError",
     "DateConfig",
     "DatetimeConfig",
+    "DirtyConfig",
     "EAN13Config",
     "EmailConfig",
     "FirstNameConfig",
@@ -169,6 +173,7 @@ __all__ = [
     "VehicleConfig",
     "VoterIDConfig",
     "__version__",
+    "add_duplicates",
     "address",
     "age",
     "birthdate",
@@ -187,6 +192,7 @@ __all__ = [
     "datasets",
     "date",
     "datetime",
+    "dirty",
     "ean13",
     "email",
     "first_name",
@@ -220,4 +226,5 @@ __all__ = [
     "validators",
     "vehicle",
     "voter_id",
+    "write_parquet_dataset",
 ]
