@@ -1,0 +1,10 @@
+{
+  "cnefe": {
+    "description": "CNEFE completo (IBGE, Censo 2022): trechos de rua com CEP, faixa de números e coordenadas",
+    "version": 1,
+    "format": 1,
+    "url": "https://github.com/blzrosa/nini-datagen/releases/download/data-cnefe-v1/cnefe-full-v1.zip",
+    "sha256": "0d688ffc98e01f3652b7a39311578aa9ac778474562de32b9bb90b8e863add28",
+    "size": 55598067
+  }
+}
