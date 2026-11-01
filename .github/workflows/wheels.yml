@@ -102,6 +102,8 @@ jobs:
       - name: gera dados
         shell: bash
         working-directory: ${{ runner.temp }}
+        env:
+          PYTHONUTF8: "1"  # o console do Windows no CI é cp1252: o print da tabela do Polars (bordas ┌─┐) falharia
         run: |
           python - <<'PY'
           import nini_datagen as dg
