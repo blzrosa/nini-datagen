@@ -134,7 +134,7 @@ Os geradores abaixo recebem uma coluna como dado: numa tabela, por `dg.ref("colu
 | gerador | dado | o que faz |
 |---|---|---|
 | `first_name`, `full_name` | `sex` | nomes coerentes com o sexo da linha (primeira letra F/M; o resto é sorteado) |
-| `birthdate` | `age` | nascimento coerente com a idade na data `on` (passe sempre `on`: sem ela, usa hoje e avisa com `FutureWarning`; obrigatória na 0.3.0) |
+| `birthdate` | `age` | nascimento coerente com a idade na data `on` (obrigatória: fixa os dados para qualquer dia) |
 | `correlated` | `other` | real com correlação `rho` com a coluna; `lognormal=True` para renda, preço... |
 | `choice_by` | `by` | escolha que depende do valor da coluna: `options={"F": [...], "M": (lista, pesos)}`, `default` |
 

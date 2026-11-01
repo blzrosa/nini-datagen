@@ -271,15 +271,15 @@ def test_birthdate_needs_age_and_rejects_negative() -> None:
         g.birthdate(2, age=[1, -1], on=dt.date(2026, 1, 1))
 
 
-def test_birthdate_without_on_warns_and_uses_today() -> None:
+def test_birthdate_requires_on() -> None:
     g = dg.DataGen(seed=5)
-    with pytest.warns(FutureWarning, match="0.3.0"):
-        born = g.birthdate(1000, age=[30] * 1000)
-    today = dt.date.today()
-    with pytest.warns(FutureWarning, match="0.3.0"):
-        cfg = dg.BirthdateConfig()
-    assert cfg.on == today
-    assert all(today.year - 31 <= d.year <= today.year - 30 for d in born.to_list())
+    with pytest.raises(ValueError, match="precisa de `on`"):
+        g.birthdate(3, age=[30, 31, 32])
+    with pytest.raises(ValueError, match="precisa de `on`"):
+        dg.BirthdateConfig.model_validate({})
+    with pytest.raises(ValueError, match="precisa de `on`"):
+        g.table(3, {"idade": "age", "nasc": ("birthdate", {"age": dg.ref("idade")})})
+    assert dg.BirthdateConfig.model_validate({"on": "2026-01-01"}).on == dt.date(2026, 1, 1)
 
 
 def test_correlated_statistics() -> None:

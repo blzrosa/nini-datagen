@@ -4,25 +4,14 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from .base import BaseConfig
 
 __all__ = ["BirthdateConfig", "ChoiceByConfig", "CorrelatedConfig"]
-
-
-def _today_with_warning() -> dt.date:
-    warnings.warn(
-        "birthdate sem `on`: usando a data de hoje, e os dados mudam de um dia para o outro. "
-        "Passe `on` (ex.: on='2026-01-01'); será obrigatório na 0.3.0.",
-        FutureWarning,
-        stacklevel=2,
-    )
-    return dt.date.today()
 
 
 class BirthdateConfig(BaseConfig):
@@ -30,12 +19,21 @@ class BirthdateConfig(BaseConfig):
     ``(on - a - 1 anos, on - a anos]``, sorteado uniformemente. A coluna de idade vai como dado:
     ``birthdate(n, age=idades)`` ou ``("birthdate", {"age": dg.ref("idade")})`` numa tabela.
 
-    ``on``: a data de referência. Passe sempre: sem ela, usa o dia em que a configuração é criada (e os dados mudam
-    de um dia para o outro), com um ``FutureWarning``; na 0.3.0 passa a ser obrigatória. Idade nula dá data nula;
-    29/02 vira 28/02 em ano não bissexto.
+    ``on``: a data de referência, obrigatória (desde a 0.3.0): com "hoje" como padrão, os dados mudariam de um dia
+    para o outro com a mesma semente. Idade nula dá data nula; 29/02 vira 28/02 em ano não bissexto.
     """
 
-    on: dt.date = Field(default_factory=_today_with_warning)
+    on: dt.date
+
+    @model_validator(mode="before")
+    @classmethod
+    def _require_on(cls, data: Any) -> Any:
+        if isinstance(data, Mapping) and data.get("on") is None:
+            raise ValueError(
+                "birthdate precisa de `on`, a data de referência das idades (ex.: on='2026-01-01'); sem ela os dados "
+                "mudariam de um dia para o outro com a mesma semente"
+            )
+        return data
 
 
 class CorrelatedConfig(BaseConfig):

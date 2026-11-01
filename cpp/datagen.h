@@ -5,7 +5,7 @@
 #pragma once
 #include <stdint.h>
 
-#define DG_ABI_VERSION 11
+#define DG_ABI_VERSION 12
 
 // DG_API: exportada ao compilar a biblioteca (DG_BUILDING), importada ao usá-la de outro código C/C++
 #if defined(_WIN32)
@@ -41,6 +41,13 @@ DG_API void dg_cpf_perm(uint64_t key, uint64_t start, int64_t m, int formatted, 
 DG_API void dg_cpf_random(uint64_t* s, int64_t m, int formatted, uint32_t* V, uint32_t* D);
 DG_API void dg_cnpj_gen(uint64_t* s, int alpha, uint32_t tp4, uint32_t tp5, int formatted, int unique, uint64_t start, uint64_t key, int64_t m, uint32_t* V, uint8_t* D);
 DG_API void dg_id_views(uint64_t* st, int kind, int style, int64_t m, uint32_t* V, uint8_t* D, int stride);
+
+/* memory.cpp */
+DG_API int64_t dg_pool_alloc(int64_t nbytes);
+DG_API void dg_pool_free(int64_t addr);
+DG_API int64_t dg_pool_limit(int64_t bytes);
+DG_API void dg_pool_trim();
+DG_API void dg_pool_stats(int64_t* out);
 
 /* network.cpp */
 DG_API void dg_uuid_views(uint64_t* st, int64_t m, uint32_t* V, uint8_t* D);

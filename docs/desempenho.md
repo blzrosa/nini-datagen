@@ -64,8 +64,9 @@ vantagem do nini-datagen vem de gerar a coluna inteira no C++, direto na memóri
 - `scan`: até a 0.2.0, o motor streaming do Polars (o padrão) pedia lotes pequenos e a geração rodava um ou dois
   blocos por vez, sem paralelismo (~220 ns/linha com 16 threads, contra ~90 do `table`). A 0.2.1 ignora essa
   sugestão e gera lotes de 1.048.576 linhas (ou o `batch_size` pedido); o Polars divide o lote depois.
-- Memória: desde a 0.2.1 os buffers grandes vêm do pool de memória do Arrow, que guarda a memória liberada para a
-  próxima geração (é o que evita pagar de novo a entrega das páginas pelo sistema). Por isso o processo pode
-  continuar com a memória de uma tabela grande depois de liberá-la; o pool devolve ao sistema aos poucos.
+- Memória: os buffers grandes vêm de um pool próprio (desde a 0.3.0; na 0.2.1, o do pyarrow), que guarda até 1 GiB
+  de memória liberada para a próxima geração (é o que evita pagar de novo a entrega das páginas pelo sistema). Por
+  isso o processo pode continuar com essa memória depois de liberar uma tabela grande: `dg.release_memory()` devolve
+  ao sistema, e `dg.pool_limit(bytes)` muda o limite (0 desliga a guarda).
 - O ganho com 16 threads na tabela é de ~3,8×: parte do trabalho (planejar colunas que dependem de outras, montar a
   tabela) não divide, e escrever 228 MB por milhão de linhas esbarra na velocidade da memória.

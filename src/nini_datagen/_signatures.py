@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ctypes import c_double, c_float, c_int, c_int64, c_uint8, c_uint16, c_uint32, c_uint64, c_void_p
 
-ABI_VERSION = 11
+ABI_VERSION = 12
 
 # nome: (tipo de retorno, [tipos dos argumentos])
 SIGNATURES = {
@@ -23,6 +23,11 @@ SIGNATURES = {
     "dg_cpf_random": (None, [c_void_p, c_int64, c_int, c_void_p, c_void_p]),
     "dg_cnpj_gen": (None, [c_void_p, c_int, c_uint32, c_uint32, c_int, c_int, c_uint64, c_uint64, c_int64, c_void_p, c_void_p]),
     "dg_id_views": (None, [c_void_p, c_int, c_int, c_int64, c_void_p, c_void_p, c_int]),
+    "dg_pool_alloc": (c_int64, [c_int64]),
+    "dg_pool_free": (None, [c_int64]),
+    "dg_pool_limit": (c_int64, [c_int64]),
+    "dg_pool_trim": (None, []),
+    "dg_pool_stats": (None, [c_void_p]),
     "dg_uuid_views": (None, [c_void_p, c_int64, c_void_p, c_void_p]),
     "dg_ipv4_views": (None, [c_void_p, c_int, c_int64, c_void_p, c_void_p]),
     "dg_url_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_int64, c_void_p, c_void_p]),

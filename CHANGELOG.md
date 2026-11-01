@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Não lançado] — 0.3.0
+
+### Mudanças incompatíveis
+- `birthdate` exige `on` (a data de referência das idades). Sem ela, a 0.2.1 usava a data de hoje com um
+  `FutureWarning`, e os dados mudavam de um dia para o outro com a mesma semente; agora é erro, com a explicação.
+
+### Memória
+- Pool de memória próprio, no C++ (`cpp/memory.cpp`), no lugar do pool do pyarrow da 0.2.1: guarda os blocos
+  liberados (até 1 GiB por padrão) e reaproveita um de tamanho parecido na próxima tabela ou lote, sem pagar de novo
+  a entrega das páginas pelo sistema. Novas funções: `dg.release_memory()` (devolve ao sistema o que está guardado),
+  `dg.pool_limit(bytes)` e `dg.pool_stats()`. `NINI_DATAGEN_POOL=arrow` volta ao pool do pyarrow, para comparar.
+
 ## [0.2.1] — 2026-10-31
 
 ### Mudanças

@@ -121,7 +121,17 @@ def memory(size: int, n: int, threads: int) -> None:
         bufs = [pa.allocate_buffer(piece, memory_pool=pool) for _ in range(PIECES)]
         return bufs, [np.frombuffer(b, np.uint8) for b in bufs]
 
-    for label, make in (("NumPy (malloc)", None), (f"pyarrow ({pool.backend_name})", arrow_bufs)):
+    def native_bufs() -> tuple[None, list[np.ndarray]]:
+        from nini_datagen.core.memory import empty  # noqa: PLC0415
+
+        return None, [empty(piece, np.uint8) for _ in range(PIECES)]
+
+    options = (
+        ("NumPy (malloc)", None),
+        (f"pyarrow ({pool.backend_name})", arrow_bufs),
+        ("pool do nini (C++)", native_bufs),
+    )
+    for label, make in options:
         first = second = free = float("inf")
         for _ in range(3):
             if make is None:

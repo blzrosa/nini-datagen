@@ -111,6 +111,7 @@ from .config import (
     VoterIDConfig,
 )
 from .config.dirty import DirtyConfig
+from .core.memory import pool_limit, pool_stats, release_memory
 from .errors import DatagenError, NativeLibraryError
 from .generator import DataGen
 from .registry import registry
@@ -211,8 +212,11 @@ __all__ = [
     "paragraph",
     "phone",
     "pis",
+    "pool_limit",
+    "pool_stats",
     "ref",
     "registry",
+    "release_memory",
     "rg",
     "scan",
     "sentence",
