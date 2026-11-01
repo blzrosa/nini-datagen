@@ -7,7 +7,7 @@ name = "nini-datagen"
 version = "0.3.0.dev0"
 description = "Dados sintéticos realistas do Brasil em escala: kernels C++ que escrevem direto em Polars."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE", "DATA_LICENSES.md"]
 authors = [{ name = "Nini (blzrosa)" }]
@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -47,12 +48,12 @@ dev = [
     "pytest>=8",
     "pytest-cov>=5",
     "scipy>=1.10",
-    "datacompolars>=0.4.3",
+    "datacompolars>=0.4.4",
     "ruff>=0.6",
     "pyright>=1.1.380",
     "pre-commit>=3.5",
 ]
-# comparação com outras bibliotecas (tools/compare.py). O dataforge-py só existe para Python >= 3.12: no 3.11 ele
+# comparação com outras bibliotecas (tools/compare.py). O dataforge-py só existe para Python >= 3.12: no 3.10 e no 3.11 ele
 # fica de fora e o compare.py pula a coluna dele. A tabela do repositório é gerada no 3.14:
 #   uv run --isolated --python 3.14 --group bench python tools/compare.py --markdown benchmarks/comparacao.md
 # ferramentas que leem/escrevem Arrow e Parquet direto (tools/build_cnefe.py) e a comparação com o pool de memória do
@@ -83,7 +84,7 @@ minimum-version = "build-system.requires"
 cmake.version = ">=3.20"
 cmake.build-type = "Release"
 # a biblioteca é carregada por ctypes (não é uma extensão do CPython): um wheel por sistema/arquitetura, válido para
-# qualquer Python >= 3.11 (tag py3-none-<plataforma>)
+# qualquer Python >= 3.10 (tag py3-none-<plataforma>)
 wheel.py-api = "py3"
 wheel.packages = ["src/nini_datagen"]
 build-dir = "build/{wheel_tag}"
@@ -104,7 +105,7 @@ cmake.args = ["-T", "ClangCL"]
 
 [tool.cibuildwheel]
 # um wheel por plataforma basta (tag py3); testa nele com o Python mais antigo suportado
-build = "cp311-*"
+build = "cp310-*"
 skip = ["*-musllinux_i686", "*-win32", "*-manylinux_i686"]
 test-groups = ["dev"]
 test-command = "pytest {project}/tests -q -m \"not bench\" -p no:cacheprovider"
@@ -123,7 +124,7 @@ environment = { DG_CLANGCL = "1" }
 
 # ------------------------------------------------------------------ qualidade
 [tool.ruff]
-target-version = "py311"
+target-version = "py310"
 line-length = 120
 src = ["src", "tests", "tools"]
 extend-exclude = ["src/nini_datagen/_signatures.py"]
@@ -140,7 +141,7 @@ ignore = [
 "tests/*" = ["PLR2004", "N802", "N803", "N806"]  # V/D/P: nomes dos buffers do Arrow e do atalho de ponteiro
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.10"
 include = ["src", "tests", "tools"]
 typeCheckingMode = "standard"
 

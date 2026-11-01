@@ -4,6 +4,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: 
 
 ## [Não lançado] — 0.3.0
 
+### Requisitos
+- Python ≥ 3.10 (antes, 3.11): o mesmo wheel (tag `py3`) serve do 3.10 ao 3.14, testado no CI em todos; o datacompolars,
+  usado nos testes, aceita 3.10 desde a 0.4.4.
+
 ### Mudanças incompatíveis
 - `birthdate` exige `on` (a data de referência das idades). Sem ela, a 0.2.1 usava a data de hoje com um
   `FutureWarning`, e os dados mudavam de um dia para o outro com a mesma semente; agora é erro, com a explicação.

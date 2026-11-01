@@ -23,7 +23,7 @@ pip install nini-datagen      # ou: uv add nini-datagen
 ```
 
 Os wheels trazem a biblioteca C++ compilada para Linux (x86-64 e ARM64), macOS (Intel e Apple Silicon) e Windows
-(x86-64), para qualquer Python ≥ 3.11. Em outra plataforma o `pip` compila a partir do código-fonte: precisa de um
+(x86-64), para qualquer Python ≥ 3.10. Em outra plataforma o `pip` compila a partir do código-fonte: precisa de um
 compilador C++17.
 
 Dependências: `polars` ≥ 1.30, `numpy`, `pydantic` ≥ 2.7 e `platformdirs` (o pyarrow não é necessário desde a 0.3.0).

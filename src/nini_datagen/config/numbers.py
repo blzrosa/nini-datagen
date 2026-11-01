@@ -125,7 +125,7 @@ _PER_US = {"ms": None, "us": 1, "ns": 1000}
 def epoch(t: dt.datetime, unit: str) -> int:
     """Instante -> inteiro na unidade (desde 1970-01-01 UTC), em aritmética exata (sem float)."""
     if t.tzinfo is not None:
-        t = t.astimezone(dt.UTC).replace(tzinfo=None)
+        t = t.astimezone(dt.timezone.utc).replace(tzinfo=None)
     d = t - _EPOCH
     us = (d.days * 86_400 + d.seconds) * 1_000_000 + d.microseconds
     if unit == "ms":

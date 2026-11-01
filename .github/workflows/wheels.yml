@@ -78,7 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15-intel, macos-14]
-        python: ["3.11", "3.14"]
+        python: ["3.10", "3.14"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,14 +89,16 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: versão publicada
         shell: bash
-        run: echo "VERSION=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")" >> "$GITHUB_ENV"
+        run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)" >> "$GITHUB_ENV"  # sem tomllib (3.11+)
       - name: instala do TestPyPI (só wheel; as dependências vêm do PyPI)
         shell: bash
         run: |
-          for i in 1 2 3 4 5 6; do
-            python -m pip install --only-binary nini-datagen --index-url https://test.pypi.org/simple/ \
+          # o índice do TestPyPI passa por um cache (CDN) que pode levar uns minutos para mostrar a versão nova:
+          # até ~15 min de novas tentativas, sem o cache do pip
+          for i in $(seq 1 30); do
+            python -m pip install --no-cache-dir --only-binary nini-datagen --index-url https://test.pypi.org/simple/ \
               --extra-index-url https://pypi.org/simple/ "nini-datagen==$VERSION" && break
-            echo "ainda não disponível no índice; tentando de novo em 30 s"; sleep 30
+            echo "ainda não disponível no índice (tentativa $i de 30); tentando de novo em 30 s"; sleep 30
           done
           python -m pip show nini-datagen
       - name: gera dados

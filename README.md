@@ -184,7 +184,7 @@ pip install nini-datagen      # ou: uv add nini-datagen
 ```
 
 Os wheels já trazem a biblioteca C++ compilada (Linux, Windows e macOS; x86-64 e ARM64) e funcionam com qualquer
-Python ≥ 3.11.
+Python ≥ 3.10.
 
 ## Desenvolvimento
 

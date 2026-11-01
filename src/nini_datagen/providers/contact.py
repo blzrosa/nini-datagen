@@ -89,7 +89,7 @@ def weighted_expand(names: Sequence[str], weights: np.ndarray, size: int = NAMES
     raros demais para ganhar uma entrada ficam de fora."""
     w = np.asarray(weights, np.float64)
     cnt = np.floor(w / w.sum() * size + 0.5).astype(np.int64)
-    return [names[i] for i in np.flatnonzero(cnt).tolist() for _ in range(int(cnt[i]))]
+    return [names[int(i)] for i in np.flatnonzero(cnt).tolist() for _ in range(int(cnt[i]))]
 
 
 def pack_words(words: Sequence[str], limit: int = 24) -> tuple[np.ndarray, np.ndarray]:
