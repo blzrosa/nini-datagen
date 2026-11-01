@@ -7,6 +7,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: 
 ### Requisitos
 - Python ≥ 3.10 (antes, 3.11): o mesmo wheel (tag `py3`) serve do 3.10 ao 3.14, testado no CI em todos; o datacompolars,
   usado nos testes, aceita 3.10 desde a 0.4.4.
+- Wheels para Windows ARM64 (Python ≥ 3.11, o primeiro com CPython oficial nessa plataforma), compilados com o MSVC;
+  o pyarrow, que não publica wheels win_arm64, era o que impedia.
 
 ### Mudanças incompatíveis
 - `birthdate` exige `on` (a data de referência das idades). Sem ela, a 0.2.1 usava a data de hoje com um

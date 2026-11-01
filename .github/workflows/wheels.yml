@@ -28,15 +28,18 @@ jobs:
       matrix:
         # ubuntu-24.04-arm: aarch64 nativo (sem QEMU); macos-15-intel: x86_64 (o macos-13 foi desativado em 12/2025;
         # o GitHub mantém Intel até o fim do macOS 15, previsto para o 2º semestre de 2027); macos-14: arm64.
-        # Windows ARM64 fica de fora: o pyarrow (dependência) não publica wheels win_arm64. Entra quando o pacote
-        # deixar de depender dele (buffers pela interface PyCapsule do Arrow).
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15-intel, macos-14]
+        # windows-11-arm: Windows ARM64 nativo (desde a 0.3.0, que não depende mais do pyarrow, sem wheels win_arm64).
+        # Lá o CPython oficial começa no 3.11 (o wheel py3 vale para qualquer versão) e a compilação é com o MSVC.
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-14]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - uses: pypa/cibuildwheel@v3.1
         env:
           CIBW_ARCHS_LINUX: ${{ matrix.os == 'ubuntu-24.04-arm' && 'aarch64' || 'x86_64' }}
+          CIBW_ARCHS_WINDOWS: ${{ matrix.os == 'windows-11-arm' && 'ARM64' || 'AMD64' }}
+          CIBW_BUILD: ${{ matrix.os == 'windows-11-arm' && 'cp311-*' || 'cp310-*' }}
+          CIBW_ENVIRONMENT_WINDOWS: ${{ matrix.os == 'windows-11-arm' && 'DG_CLANGCL=0' || 'DG_CLANGCL=1' }}
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
@@ -77,8 +80,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15-intel, macos-14]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-14]
         python: ["3.10", "3.14"]
+        exclude:
+          - os: windows-11-arm  # sem CPython ARM64 oficial antes do 3.11
+            python: "3.10"
+        include:
+          - os: windows-11-arm
+            python: "3.11"
     steps:
       - uses: actions/checkout@v4
         with:

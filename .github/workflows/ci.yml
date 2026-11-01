@@ -30,10 +30,14 @@ jobs:
       fail-fast: false
       matrix:
         # macos-latest já é ARM64 (Apple Silicon); ubuntu-24.04-arm: Linux ARM64 nativo (sem emulação)
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
+        # windows-11-arm: Windows ARM64 (compila com o MSVC; sem CPython ARM64 oficial antes do 3.11)
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-latest]
         python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          - os: windows-11-arm
+            python: "3.10"
     env:  # no nível do job: o `uv run` recompilaria se a variável mudasse entre os passos
-      DG_CLANGCL: ${{ matrix.python != '3.10' && '1' || '' }}
+      DG_CLANGCL: ${{ (matrix.python != '3.10' && matrix.os != 'windows-11-arm') && '1' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
