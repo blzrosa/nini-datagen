@@ -14,6 +14,7 @@ from .._native import lib, ptr
 from ..config.person import AgeConfig, FirstNameConfig, FullNameConfig, LastNameConfig, SexConfig
 from ..core.arrow import string_view_buffers, views_to_series
 from ..core.blocks import Block, map_blocks
+from ..core.memory import empty
 from ..core.tables import Vocabulary, alias_table
 from ..locales import FirstNames, Locale
 from ..registry import registry
@@ -129,7 +130,7 @@ def female_mask(sex: Any, run: Run, p_female: float) -> np.ndarray:
     got = string_view_buffers(s)
     if got is not None:  # caminho rápido: o C++ lê a primeira letra direto das views do Arrow, numa passada
         views, valid, bit_offset, _owner = got
-        out = np.empty(run.n, np.uint8)
+        out = empty(run.n, np.uint8)
         valid_ptr = ptr(valid) if valid is not None else None
         unknown = lib().dg_sex_mask(ptr(views), valid_ptr, bit_offset, run.n, ptr(out))
         known = out != 2 if unknown else None
@@ -208,7 +209,7 @@ class _Indices:
     def __init__(self, run: Run, stream: str, pools: _NamePools, sex: str | None, is_f: np.ndarray | None) -> None:
         self.states = run.stream_states(stream)
         self.pools, self.sex, self.is_f = pools, sex, is_f
-        self.out = np.empty(run.n, np.uint32)
+        self.out = empty(run.n, np.uint32)
 
     def fill(self, b: Block) -> None:
         lib_ = lib()
@@ -321,14 +322,14 @@ def join_text(
     data_ptrs = np.array([ptr(t) for t in texts], dtype=np.uint64)
     sep_bytes = np.frombuffer(sep.encode("utf-8") + bytes(16), np.uint8).copy()
     seplen = len(sep.encode("utf-8"))
-    views = np.empty((run.n, 4), np.uint32)
+    views = empty((run.n, 4), np.uint32)
     datas: list[np.ndarray] = [np.empty(0, np.uint8)] * len(run.blocks)
 
     def join(b: Block) -> None:
         lib_ = lib()
         idx_ptrs = np.array([ptr(i[b.start :]) for i in idxs], dtype=np.uint64)
         size = lib_.dg_join_size(b.rows, len(parts), ptr(dv_ptrs), ptr(idx_ptrs), seplen)
-        buf = np.empty(size + 16, np.uint8)
+        buf = empty(size + 16, np.uint8)
         lib_.dg_join_views(
             b.rows, len(parts), ptr(dv_ptrs), ptr(data_ptrs), ptr(idx_ptrs), ptr(sep_bytes), seplen, b.index,
             ptr(views[b.start :]), ptr(buf),
@@ -345,7 +346,7 @@ class _Draw:
     def __init__(self, run: Run, stream: str, tab: np.ndarray) -> None:
         self.states = run.stream_states(stream)
         self.tab = tab
-        self.out = np.empty(run.n, np.uint32)
+        self.out = empty(run.n, np.uint32)
 
     def fill(self, b: Block) -> None:
         lib().dg_alias_idx(len(self.tab), ptr(self.tab), ptr(self.states[b.index]), b.rows, ptr(self.out[b.start :]))
@@ -362,7 +363,7 @@ def _presence(run: Run, stream: str, p: float) -> np.ndarray:
 
 def _bits(run: Run, stream: str, p: float) -> np.ndarray:
     """Bits Bernoulli(p) do fluxo ``stream`` (como `Run.bits`, para um fluxo com outro nome)."""
-    out = np.empty(-(-run.n // 64), np.uint64)
+    out = empty(-(-run.n // 64), np.uint64)
     st = run.stream_states(stream)
     thr = probability_threshold(p)
     for b in run.blocks:

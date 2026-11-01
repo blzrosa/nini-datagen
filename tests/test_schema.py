@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
@@ -216,6 +217,33 @@ def test_scan_collect_equals_table() -> None:
 
 
 @pytest.mark.skipif(FAKE, reason="precisa do Polars de verdade")
+@pytest.mark.parametrize("engine", ["streaming", "in-memory"])
+def test_scan_ignores_polars_batch_hint(
+    engine: Literal["streaming", "in-memory"], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # o motor streaming sugere lotes pequenos; seguir a sugestão tirava o paralelismo entre blocos
+    from nini_datagen.schema import lazy  # noqa: PLC0415
+
+    seen: list[Any] = []
+    original = lazy.scan_source
+
+    def spy(*a: Any) -> Any:
+        seen.append(a[-1])
+        return original(*a)
+
+    monkeypatch.setattr(lazy, "scan_source", spy)
+    g = dg.DataGen(seed=SEED)
+    s = people_schema()
+    assert g.scan(N, s).collect(engine=engine).equals(g.table(N, s))
+    assert seen
+    assert all(b is None for b in seen)
+    seen.clear()
+    g.scan(N, s, batch_size=BLOCK_ROWS).collect(engine=engine)
+    assert seen
+    assert all(b == BLOCK_ROWS for b in seen)
+
+
+@pytest.mark.skipif(FAKE, reason="precisa do Polars de verdade")
 def test_scan_schema_matches_table() -> None:
     g = dg.DataGen(seed=SEED)
     assert g.scan(10, people_schema()).collect_schema() == g.table(10, people_schema()).schema
@@ -238,9 +266,20 @@ def test_birthdate_coherent_with_age() -> None:
 def test_birthdate_needs_age_and_rejects_negative() -> None:
     g = dg.DataGen(seed=5)
     with pytest.raises(ValueError, match="age"):
-        g.birthdate(3)
+        g.birthdate(3, on=dt.date(2026, 1, 1))
     with pytest.raises(ValueError, match="negativ"):
-        g.birthdate(2, age=[1, -1])
+        g.birthdate(2, age=[1, -1], on=dt.date(2026, 1, 1))
+
+
+def test_birthdate_without_on_warns_and_uses_today() -> None:
+    g = dg.DataGen(seed=5)
+    with pytest.warns(FutureWarning, match="0.3.0"):
+        born = g.birthdate(1000, age=[30] * 1000)
+    today = dt.date.today()
+    with pytest.warns(FutureWarning, match="0.3.0"):
+        cfg = dg.BirthdateConfig()
+    assert cfg.on == today
+    assert all(today.year - 31 <= d.year <= today.year - 30 for d in born.to_list())
 
 
 def test_correlated_statistics() -> None:

@@ -12,6 +12,7 @@ from .._native import lib, ptr
 from ..config.business import CompanyConfig, OccupationConfig, VehicleConfig
 from ..core.arrow import apply_validity, primitive_to_series, views_to_series
 from ..core.blocks import Block
+from ..core.memory import empty
 from ..core.tables import Vocabulary, alias_table
 from ..locales import Locale
 from ..registry import registry
@@ -87,7 +88,7 @@ class VehicleJob(Job):
 
     def __init__(self, n: int, t: dict[str, Any]) -> None:
         self.n, self.t = n, t
-        self.idx = np.empty((3, n), np.uint32)
+        self.idx = empty((3, n), np.uint32)
 
     def fill(self, block: Block, state: np.ndarray) -> None:
         t, a = self.t, block.start
@@ -98,7 +99,7 @@ class VehicleJob(Job):
         )  # fmt: skip
 
     def _strings(self, vocab: Vocabulary, idx: np.ndarray, name: str) -> pl.Series:
-        views = np.empty((self.n, 4), np.uint32)
+        views = empty((self.n, 4), np.uint32)
         lib().dg_gather_views(ptr(vocab.views), ptr(idx), self.n, ptr(views))
         return views_to_series(views, vocab.data, name, trim_data=False)
 

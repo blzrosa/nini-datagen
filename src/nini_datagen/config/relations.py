@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -14,16 +15,27 @@ from .base import BaseConfig
 __all__ = ["BirthdateConfig", "ChoiceByConfig", "CorrelatedConfig"]
 
 
+def _today_with_warning() -> dt.date:
+    warnings.warn(
+        "birthdate sem `on`: usando a data de hoje, e os dados mudam de um dia para o outro. "
+        "Passe `on` (ex.: on='2026-01-01'); será obrigatório na 0.3.0.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return dt.date.today()
+
+
 class BirthdateConfig(BaseConfig):
     """Data de nascimento (Date) coerente com uma coluna de idades: quem tem ``a`` anos em ``on`` nasceu no intervalo
     ``(on - a - 1 anos, on - a anos]``, sorteado uniformemente. A coluna de idade vai como dado:
     ``birthdate(n, age=idades)`` ou ``("birthdate", {"age": dg.ref("idade")})`` numa tabela.
 
-    ``on``: a data de referência. O padrão é o dia em que a configuração é criada; fixe para reproduzir os dados em
-    outro dia. Idade nula dá data nula; 29/02 vira 28/02 em ano não bissexto.
+    ``on``: a data de referência. Passe sempre: sem ela, usa o dia em que a configuração é criada (e os dados mudam
+    de um dia para o outro), com um ``FutureWarning``; na 0.3.0 passa a ser obrigatória. Idade nula dá data nula;
+    29/02 vira 28/02 em ano não bissexto.
     """
 
-    on: dt.date = Field(default_factory=dt.date.today)
+    on: dt.date = Field(default_factory=_today_with_warning)
 
 
 class CorrelatedConfig(BaseConfig):

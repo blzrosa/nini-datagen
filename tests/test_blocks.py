@@ -74,3 +74,39 @@ def test_map_blocks_propagates_errors():
 
     with pytest.raises(RuntimeError, match="bloco"):
         map_blocks(boom, split(3 * BLOCK_ROWS), threads=2)
+
+
+def test_parallel_map_reuses_pool_and_keeps_order():
+    from nini_datagen.core import blocks  # noqa: PLC0415
+
+    names: set[str] = set()
+
+    def f(x: int) -> int:
+        names.add(threading.current_thread().name)
+        return x * x
+
+    assert blocks.parallel_map(f, list(range(100)), 4) == [x * x for x in range(100)]
+    pool = blocks._pools[4]
+    assert blocks.parallel_map(f, list(range(100)), 4) == [x * x for x in range(100)]
+    assert blocks._pools[4] is pool  # o mesmo pool, reaproveitado
+    assert all(name.startswith("nini-datagen") for name in names)
+
+
+def test_parallel_map_nested_runs_serially_without_deadlock():
+    from nini_datagen.core.blocks import parallel_map  # noqa: PLC0415
+
+    def inner(x: int) -> list[int]:
+        return parallel_map(lambda y: x * 10 + y, [0, 1, 2], 2)
+
+    assert parallel_map(inner, [1, 2, 3, 4], 2) == [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]]
+
+
+def test_fill_groups_balance_cost():
+    from nini_datagen.schema.plan import _cost_groups  # noqa: PLC0415
+
+    items: list = list("abcdef")
+    groups = _cost_groups(items, [60.0, 30.0, 10.0, 10.0, 5.0, 5.0], 3)
+    assert sorted(x for g in groups for x in g) == items
+    assert groups[0] == ["a"]
+    assert len(groups) == 3
+    assert _cost_groups(items, [1.0] * 6, 1) == [items]

@@ -57,5 +57,5 @@ DG_EXPORT i64 dg_views_used(u32* V, i64 m, int buf) {
 // Inicializa TODAS as tabelas de uma vez. O Python chama isto ao carregar a biblioteca, ANTES de usar threads: as
 // inicializações preguiçosas dentro dos kernels seriam uma corrida de dados entre threads (e, em CPUs com memória
 // fracamente ordenada, outra thread poderia ver a flag "pronto" antes das tabelas).
-DG_EXPORT int dg_init() { init_cpf(); init_cnpj(); init_h2(); init_ip(); return 1; }
+DG_EXPORT int dg_init() { init_cpf(); init_cnpj(); init_h2(); init_ip(); init_house_logs(); init_simd(); return 1; }
 DG_EXPORT int dg_abi_version() { return DG_ABI_VERSION; }

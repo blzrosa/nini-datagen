@@ -19,6 +19,7 @@ import polars as pl
 from .._native import lib, ptr
 from ..config.dirty import DirtyConfig
 from ..core.blocks import Block, split
+from ..core.memory import empty
 from ..core.rng import block_states
 
 __all__ = ["RowStreams", "apply_dirty", "dirty"]
@@ -40,7 +41,7 @@ class RowStreams:
     n: int
 
     def uniform(self, stream: str) -> np.ndarray:
-        out = np.empty(self.n, np.float64)
+        out = empty(self.n, np.float64)
         st = block_states(self.seed, self.prefix + stream, len(self.blocks), self.first_block)
         fn = lib().dg_rand_f64
         for b in self.blocks:
@@ -49,7 +50,7 @@ class RowStreams:
 
     def integers(self, stream: str, span: int = _ARG_SPAN) -> np.ndarray:
         """Um inteiro uniforme em ``[0, span)`` por linha (padrão: ``[0, 2^62)``)."""
-        out = np.empty(self.n, np.int64)
+        out = empty(self.n, np.int64)
         st = block_states(self.seed, self.prefix + stream, len(self.blocks), self.first_block)
         fn = lib().dg_rand_i64
         for b in self.blocks:

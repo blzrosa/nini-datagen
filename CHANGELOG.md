@@ -2,6 +2,42 @@
 
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: [SemVer](https://semver.org/lang/pt-BR/).
 
+## [0.2.1] — 2026-10-31
+
+### Mudanças
+- `birthdate` sem `on` emite `FutureWarning` (continua usando a data de hoje). Sem `on`, os dados mudam de um dia
+  para o outro; na 0.3.0, `on` passa a ser obrigatório.
+
+### Desempenho (mesma saída, bit a bit)
+- Tabela de 20 colunas (1 milhão de linhas, Windows): de 110–117 para ~45 ns/linha com 16 threads e de 302–314 para
+  ~205 com 1; o `scan` acompanha o `table` (~48).
+- `normal`, `lognormal` e `correlated`: em passadas (sorteio; região central da inversa, caudas e exp sem desvios),
+  com uma segunda cópia dos laços compilada para AVX2, escolhida na hora quando a CPU tem (os wheels continuam para
+  x86-64-v2). Sem FMA, as duas cópias dão os mesmos bits; o `det_log` também ficou sem desvio. No Windows (clang-cl,
+  como os wheels): `normal` de 5,2 para 3,0 ns/linha e `lognormal` de 9,6 para 4,4, abaixo do MVP (4,1 e 4,9).
+- `scan` com muitas threads: o motor streaming do Polars sugeria lotes pequenos (um ou dois blocos), e a geração
+  perdia o paralelismo entre blocos (~220 ns/linha com 16 threads na tabela de 20 colunas, contra ~90 do `table`).
+  A sugestão passa a ser ignorada: os lotes são de 1.048.576 linhas, ou do `batch_size` pedido.
+- Memória: os buffers grandes (colunas, textos) vêm do pool de memória do Arrow (mimalloc no Windows e no macOS,
+  jemalloc no Linux), que reaproveita as páginas entre tabelas e lotes. Medido no Windows com a tabela de 20
+  colunas: o sistema entregar as páginas na primeira escrita custava ~39 ns/linha com 1 thread, e liberar a tabela,
+  ~27 ns/linha; com o pool, gerar de novo (outra tabela, o próximo lote do `scan`) não paga nenhum dos dois.
+- Threads: um pool reaproveitado entre chamadas (antes, cada tabela criava três por nível de dependência, ~0,8 ms
+  cada com 16 threads), e, com poucos blocos por thread, cada bloco é dividido em grupos de colunas de custo
+  parecido, para nenhuma thread ficar com a maior parte do trabalho no fim.
+- `ipv4`: o texto é montado em registradores (sem ler de volta o que acabou de ser escrito) e as faixas reservadas
+  só são conferidas nos 6 primeiros octetos que têm alguma; kernel ~40% mais rápido.
+- Número da casa (`address`): o log dos limites da faixa de cada trecho vem de uma tabela calculada uma vez; o kernel
+  cai de ~38 para ~17 ns/linha.
+
+### Ferramentas
+- Benchmarks com estatística: `tools/bench.py` (e `pytest -m bench`) mede 10 repetições por caso e compara com o MVP
+  pela razão das médias com intervalo de 95% (Welch): `ok`, `inconclusivo` ou `mais lento`. A referência do MVP vem
+  de `tools/bench_mvp.py` (100 repetições, no ambiente do MVP), gravada em `tools/mvp_stats.json`. Sem a cópia AVX2
+  (build local com o MSVC), `lognormal` conta como exceção.
+- `tools/diag_scan.py`: compara `scan` e `table` variando o motor do Polars, as threads (do Polars e da geração) e o
+  tamanho do lote, separando o tempo de geração do tempo do lado do Polars.
+
 ## [0.2.0] — 2026-10-31
 
 Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a v0.2.0 reescreve a estrutura.
@@ -103,5 +139,4 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   Vale a regra geral de nenhum gerador ou tabela mais lento que o MVP.
 
 ### Próximo
-- `scan` com muitas threads (a diferença está do lado do Polars), buffers sem pyarrow (PyCapsule) e
-  wheels para Windows ARM64.
+- 0.3.0: `birthdate` com `on` obrigatório, buffers sem pyarrow (PyCapsule) e wheels para Windows ARM64.

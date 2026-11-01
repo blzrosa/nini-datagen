@@ -19,6 +19,7 @@ from ..config.text import ParagraphConfig, SentenceConfig
 from ..core.arrow import views_to_series
 from ..core.blocks import Block
 from ..core.grammar import CompiledGrammar, compile_grammar, parse_option
+from ..core.memory import empty
 from ..core.views import trim
 from ..locales import Grammar, Locale
 from ..registry import registry
@@ -80,7 +81,7 @@ class GrammarJob(Job):
     """Views da coluna inteira + um ou mais buffers de texto por bloco (veja o docstring do módulo)."""
 
     def __init__(self, n: int, g: CompiledGrammar, smin: int, smax: int, n_blocks: int) -> None:
-        self.views = np.empty((n, 4), np.uint32)
+        self.views = empty((n, 4), np.uint32)
         self.g, self.smin, self.smax = g, smin, smax
         self.max_row = smax * (g.max_len + 1)
         self.mean_row = (smin + smax) / 2 * (g.mean_len + 1)
@@ -93,7 +94,7 @@ class GrammarJob(Job):
         while done < block.rows:
             left = block.rows - done
             cap = max(int(left * self.mean_row * 1.15) + 4096, self.max_row)
-            data = np.empty(cap + _SLACK, np.uint8)
+            data = empty(cap + _SLACK, np.uint8)
             k = fn(
                 ptr(state), ptr(g.sym_off), ptr(g.tab), ptr(g.opt_off), ptr(g.tok), ptr(g.lit), ptr(g.leaf_lit),
                 ptr(g.pool), self.smin, self.smax, int(g.row_root), self.max_row, cap, left,

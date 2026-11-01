@@ -173,6 +173,19 @@ DG_EXPORT void dg_address_core(u64* st, u32 k, const u64* tab, const u32* rec, c
 // Numero da casa. Com a faixa real do trecho (lo..hi, lo > 0): log-uniforme entre lo e hi, para numeros baixos sairem
 // mais (um unico endereco rural "27201" nao puxa a rua inteira para 5 digitos). Sem faixa (lo nulo, ou lo[i] <= 0):
 // lognormal(4,2; 1,1) cortada em 1..9999. Um numero do gerador por linha; log/exp deterministicos (detmath.hpp).
+// det_log dos inteiros 1..HOUSE_LOGS-1 (faixas de número dos trechos), calculado uma vez: os dois det_log por linha
+// custavam mais que o resto do endereço. Mesmos bits do det_log direto (é a mesma função).
+#define HOUSE_LOGS 65536
+static double HOUSE_LOG[HOUSE_LOGS];
+static bool house_logs_ready = false;
+void init_house_logs() {
+  if (house_logs_ready) return;
+  HOUSE_LOG[0] = 0.0;
+  for (u32 v = 1; v < HOUSE_LOGS; v++) HOUSE_LOG[v] = det_log((double)v);
+  house_logs_ready = true;
+}
+static inline double house_log(u32 v) { return v < HOUSE_LOGS ? HOUSE_LOG[v] : det_log((double)v); }
+
 DG_EXPORT void dg_house_number(u64* st, const u32* small, i64 m, i32* out) {
   u64 s0 = st[0], s1 = st[1], s2 = st[2], s3 = st[3];
   for (i64 r = 0; r < m; r++) {
@@ -182,7 +195,7 @@ DG_EXPORT void dg_house_number(u64* st, const u32* small, i64 m, i32* out) {
     i32 a = (i32)row[0], b = (i32)row[1];                         // faixa do trecho (0 quando a base nao tem)
     i32 v;
     if (a > 0 && b >= a) {
-      double la = det_log((double)a), lb = det_log((double)b + 1.0);
+      double la = house_log((u32)a), lb = house_log((u32)b + 1u);
       double y = std::floor(det_exp(la + u * (lb - la)));
       v = y > (double)b ? b : (y < (double)a ? a : (i32)y);
     } else {

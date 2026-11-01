@@ -14,13 +14,12 @@ lotes (`scan`, `write_parquet_dataset`) dá a mesma tabela que gerar tudo de uma
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
 import polars as pl
 
-from ..core.blocks import BLOCK_ROWS, Block, map_blocks, resolve_threads, split
+from ..core.blocks import BLOCK_ROWS, Block, parallel_map, resolve_threads, split
 from ..locales import Locale
 from ..providers.base import PARALLEL_MIN_NS, Context, Prepared
 from ..registry import registry
@@ -176,8 +175,8 @@ class Schema:
 
             prepared = _map(prepare, fused, threads)
             if prepared:
-                cost = sum(registry.get(c.kind).ns_per_row for c in fused)
-                _fill(prepared, blocks, 1 if cost < PARALLEL_MIN_NS else threads)
+                costs = [registry.get(c.kind).ns_per_row for c in fused]
+                _fill(prepared, blocks, 1 if sum(costs) < PARALLEL_MIN_NS else threads, costs)
                 for p, series in zip(prepared, _map(Prepared.finish, prepared, threads), strict=True):
                     built[p.run.name] = series
             for spec in cols:
@@ -192,19 +191,39 @@ R = TypeVar("R")
 
 def _map(fn: Callable[[T], R], items: Sequence[T], threads: int | None) -> list[R]:
     """``[fn(x) for x in items]``, em paralelo quando há mais de um item e mais de uma thread (ordem preservada)."""
-    workers = min(resolve_threads(threads), len(items))
-    if workers <= 1:
-        return [fn(x) for x in items]
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="nini-datagen-col") as pool:
-        return list(pool.map(fn, items))
+    return parallel_map(fn, items, threads)
 
 
-def _fill(prepared: list[Prepared], blocks: list[Block], threads: int | None) -> None:
-    def one(b: Block) -> None:
-        for p in prepared:
+def _fill(prepared: list[Prepared], blocks: list[Block], threads: int | None, costs: Sequence[float] = ()) -> None:
+    """Preenche todos os blocos de todas as colunas. Com poucos blocos por thread (ex.: 1 milhão de linhas são 16
+    blocos), cada bloco vira alguns grupos de colunas de custo parecido, para nenhuma thread ficar com a maior parte do
+    trabalho no fim; cada tarefa escreve só nas fatias das suas colunas no seu bloco. ``costs``: ns/linha estimado de
+    cada coluna (na ordem de ``prepared``); sem ele, todas contam igual."""
+    workers = min(resolve_threads(threads), len(blocks) * len(prepared))
+    k = -(-4 * workers // max(len(blocks), 1))
+    groups = _cost_groups(prepared, list(costs) or [1.0] * len(prepared), k) if workers > 1 else [prepared]
+    tasks = [(b, g) for b in blocks for g in groups]
+
+    def one(task: tuple[Block, list[Prepared]]) -> None:
+        b, group = task
+        for p in group:
             p.fill(b)
 
-    map_blocks(one, blocks, threads)
+    parallel_map(one, tasks, threads)
+
+
+def _cost_groups(prepared: list[Prepared], costs: list[float], k: int) -> list[list[Prepared]]:
+    """Divide as colunas em até ``k`` grupos de custo parecido (as mais caras primeiro, cada uma no grupo mais leve)."""
+    k = max(1, min(k, len(prepared)))
+    if k == 1:
+        return [prepared]
+    groups: list[list[Prepared]] = [[] for _ in range(k)]
+    load = [0.0] * k
+    for i in sorted(range(len(prepared)), key=lambda i: -costs[i]):
+        j = load.index(min(load))
+        groups[j].append(prepared[i])
+        load[j] += costs[i]
+    return [g for g in groups if g]
 
 
 def _evaluate(spec: ExprColumn, built: Mapping[str, pl.Series], n: int) -> pl.Series:

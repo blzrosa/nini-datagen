@@ -62,8 +62,12 @@ def scan(schema: Schema, ctx: Context, n: int, *, batch_size: int | None = None)
     def source(
         with_columns: list[str] | None, predicate: Any, n_rows: int | None, batch: int | None
     ) -> Iterator[pl.DataFrame]:
+        # `batch` (a sugestão do Polars) fica de fora de propósito: o motor streaming pede lotes pequenos, que
+        # viravam um ou dois blocos de 65.536 linhas por vez, e a geração deixava de rodar os blocos em paralelo
+        # (o `scan` com 16 threads saía ~2,4x mais lento que o `table`). O Polars divide lotes grandes sozinho.
+        del batch
         pred = predicate if isinstance(predicate, pl.Expr) else None
-        return scan_source(schema, ctx, n, with_columns, pred, n_rows, batch_size or batch)
+        return scan_source(schema, ctx, n, with_columns, pred, n_rows, batch_size)
 
     try:
         from polars.io.plugins import register_io_source  # noqa: PLC0415

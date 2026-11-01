@@ -14,9 +14,13 @@ static inline u64 double_to_bits(double d) { u64 b; memcpy(&b, &d, 8); return b;
 // log(m) = 2 atanh(f), f = (m - 1) / (m + 1), |f| <= 0,1716: série até f^21 (resto < 1e-18).
 static inline double det_log(double x) {
   const u64 bits = double_to_bits(x);
-  double e = (double)((i64)((bits >> 52) & 0x7FF) - 1023);
+  // expoente como double sem conversão de inteiro (que o SSE/AVX2 não têm vetorizada para 64 bits): 2^52 + campo,
+  // menos 2^52 + 1023, dá exatamente o mesmo valor de (double)(campo - 1023)
+  double e = bits_to_double(((bits >> 52) & 0x7FF) | 0x4330000000000000ull) - 4503599627371519.0;
   double m = bits_to_double((bits & 0x000FFFFFFFFFFFFFull) | 0x3FF0000000000000ull);  // mantissa em [1, 2)
-  if (m > 1.4142135623730951) { m = m * 0.5; e = e + 1.0; }
+  const bool big = m > 1.4142135623730951;   // escolha sem desvio (vetoriza): as mesmas contas do if de antes
+  m = big ? m * 0.5 : m;
+  e = big ? e + 1.0 : e;
   const double f = (m - 1.0) / (m + 1.0), f2 = f * f;
   double p = 1.0 / 21.0;
   p = p * f2 + 1.0 / 19.0; p = p * f2 + 1.0 / 17.0; p = p * f2 + 1.0 / 15.0; p = p * f2 + 1.0 / 13.0;

@@ -18,6 +18,7 @@ from .._native import lib, ptr
 from ..config.address import AddressConfig, CepConfig, CityConfig, StateConfig
 from ..core.arrow import apply_validity, numeric_to_series, primitive_to_series, views_to_series
 from ..core.blocks import Block
+from ..core.memory import empty
 from ..core.tables import ViewTable, alias_table
 from ..locales import Locale
 from ..registry import registry
@@ -136,22 +137,22 @@ class AddressJob(Job):
         self.t = address_tables(run.locale, config.source, config.uf)
         base = self.t["base"]
         self.lo, self.hi = base.number_min, base.number_max
-        self.idx = np.empty(n, np.uint32)
-        self.number = np.empty(n, np.int32)
-        self.views = {f: np.empty((n, 4), np.uint32) for f in ("street", "neighborhood", "city", "state", "cep")}
+        self.idx = empty(n, np.uint32)
+        self.number = empty(n, np.int32)
+        self.views = {f: empty((n, 4), np.uint32) for f in ("street", "neighborhood", "city", "state", "cep")}
         self.complements = vocabulary(run.locale.address_complements())
-        self.views["complement"] = np.empty((n, 4), np.uint32)
+        self.views["complement"] = empty((n, 4), np.uint32)
         self.number_states = run.states(":number")  # cada campo sorteado tem fluxo próprio (o do trecho é o da coluna)
         self.complement_states = run.states(":complement")
         self.complement_valid = run.bits(config.complement, ":complement_null") if config.complement < 1 else None
         self.phone = _phone_tables(run.locale) if config.phone else None
         if self.phone is not None:
-            self.views["phone"] = np.empty((n, 4), np.uint32)
+            self.views["phone"] = empty((n, 4), np.uint32)
             self.phone_states = run.states(":phone")
             self.ddd_states = run.states(":phone_ddd")
             self.phone_datas: list[np.ndarray] = [np.empty(0, np.uint8)] * len(run.blocks)
         if config.full:
-            self.views["full"] = np.empty((n, 4), np.uint32)
+            self.views["full"] = empty((n, 4), np.uint32)
             self.full_datas: list[np.ndarray] = [np.empty(0, np.uint8)] * len(run.blocks)
             seps = "".join(FULL_SEPARATORS).encode("utf-8")
             self.seps = np.frombuffer(seps + b"\0" * 8, np.uint8).copy()  # folga: o kernel copia 8 bytes por separador
@@ -184,7 +185,7 @@ class AddressJob(Job):
         dst = self.ddd_states[block.index]
         dg.dg_pick_in_group(ptr(dst), ptr(small), 2, ptr(p["off"]), ptr(p["cnt"]), ptr(p["flat"]), m,
                            ptr(ddd))  # fmt: skip
-        data = np.empty(m * 16, np.uint8)
+        data = empty(m * 16, np.uint8)
         thr = probability_threshold(0.8)
         dg.dg_phone_views(ptr(st), len(p["chars"]), ptr(p["tab"]), ptr(p["chars"]), thr, 1, m, ptr(out), ptr(data),
                          ptr(ddd))  # fmt: skip
@@ -193,7 +194,7 @@ class AddressJob(Job):
 
     def _full(self, block: Block, v: dict[str, np.ndarray]) -> None:
         t, dg, m = self.t, lib(), block.rows
-        num = np.empty((m, 4), np.uint32)
+        num = empty((m, 4), np.uint32)
         dg.dg_int_views(ptr(self.number[block.start :]), m, ptr(num))
         parts = [(v["street"], t["streets"].datas), (num, ()), (v["neighborhood"], t["districts"].datas),
                  (v["city"], t["cities"].datas), (v["state"], t["states"].datas), (v["cep"], ())]  # fmt: skip
@@ -202,7 +203,7 @@ class AddressJob(Job):
         buf_lists = [np.array([ptr(d) for d in p[1]] or [0], np.uintp) for p in parts]
         bufs_p = np.array([ptr(b) for b in buf_lists], np.uintp)
         size = dg.dg_concat_size(m, k, ptr(views_p), ptr(self.sep_off))
-        data = np.empty(size + 16, np.uint8)
+        data = empty(size + 16, np.uint8)
         dg.dg_concat_views(m, k, ptr(views_p), ptr(bufs_p), ptr(self.seps), ptr(self.sep_off), ptr(v["full"]),
                           ptr(data))  # fmt: skip
         dg.dg_views_used(ptr(v["full"]), m, block.index)

@@ -2,22 +2,28 @@
 
 O tamanho do bloco é fixo (``BLOCK_ROWS``) e faz parte do contrato de reprodutibilidade: mudar esse número muda os dados
 gerados para a mesma semente. Por isso ele não é configurável.
+
+As threads ficam num pool por número de threads, criado na primeira vez e reaproveitado: criar 16 threads custava
+~0,8 ms, e cada tabela criava três pools por nível de dependência (pesa no `scan`, que gera lote atrás de lote).
+Dentro de uma thread do pool, `parallel_map` roda em série (um pool esperando por ele mesmo travaria).
 """
 
 from __future__ import annotations
 
 import os
+import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import TypeVar
 
-__all__ = ["BLOCK_ROWS", "THREADS_ENV", "Block", "map_blocks", "resolve_threads", "split"]
+__all__ = ["BLOCK_ROWS", "THREADS_ENV", "Block", "map_blocks", "parallel_map", "resolve_threads", "split"]
 
 BLOCK_ROWS = 65_536
 THREADS_ENV = "NINI_DATAGEN_THREADS"
 
 T = TypeVar("T")
+Item = TypeVar("Item")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,10 +81,42 @@ def _cpu_count() -> int:
     return os.cpu_count() or 1
 
 
+_pools: dict[int, ThreadPoolExecutor] = {}
+_pools_lock = threading.Lock()
+_local = threading.local()
+
+
+def _mark_worker() -> None:
+    _local.worker = True
+
+
+def _pool(workers: int) -> ThreadPoolExecutor:
+    with _pools_lock:
+        pool = _pools.get(workers)
+        if pool is None:
+            pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="nini-datagen", initializer=_mark_worker)
+            _pools[workers] = pool
+        return pool
+
+
+def _forget_pools() -> None:  # no processo filho de um fork, as threads do pai não existem
+    global _pools_lock  # noqa: PLW0603
+    _pools.clear()
+    _pools_lock = threading.Lock()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_forget_pools)
+
+
+def parallel_map(fn: Callable[[Item], T], items: Sequence[Item], threads: int | None = None) -> list[T]:
+    """``[fn(x) for x in items]`` (mesma ordem), em paralelo quando há mais de um item e mais de uma thread."""
+    workers = resolve_threads(threads)  # o pool é por número de threads pedido (não por tarefa): poucos pools vivos
+    if min(workers, len(items)) <= 1 or getattr(_local, "worker", False):
+        return [fn(x) for x in items]
+    return list(_pool(workers).map(fn, items))
+
+
 def map_blocks(fn: Callable[[Block], T], blocks: Sequence[Block], threads: int | None = None) -> list[T]:
     """Aplica ``fn`` a cada bloco e devolve os resultados na ordem dos blocos (paralelo quando vale a pena)."""
-    workers = min(resolve_threads(threads), len(blocks))
-    if workers <= 1:
-        return [fn(b) for b in blocks]
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="nini-datagen") as pool:
-        return list(pool.map(fn, blocks))
+    return parallel_map(fn, blocks, threads)

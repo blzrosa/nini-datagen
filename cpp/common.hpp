@@ -76,3 +76,5 @@ void init_cpf();
 void init_h2();
 void init_cnpj();   // documents.cpp
 void init_ip();     // network.cpp
+void init_house_logs();   // address.cpp
+void init_simd();         // numbers.cpp

@@ -5,7 +5,7 @@
 #pragma once
 #include <stdint.h>
 
-#define DG_ABI_VERSION 10
+#define DG_ABI_VERSION 11
 
 // DG_API: exportada ao compilar a biblioteca (DG_BUILDING), importada ao usá-la de outro código C/C++
 #if defined(_WIN32)
@@ -54,6 +54,7 @@ DG_API void dg_rand_i64(uint64_t* s, int64_t lo, uint64_t span, int64_t m, int64
 DG_API void dg_rand_i32(uint64_t* s, int lo, uint32_t span, int64_t m, int* out);
 DG_API void dg_rand_f64(uint64_t* s, double lo, double hi, int64_t m, double* out);
 DG_API void dg_rand_f32(uint64_t* s, float lo, float hi, int64_t m, float* out);
+DG_API int dg_simd(int level);
 DG_API void dg_rand_normal(uint64_t* s, double mu, double sigma, int lognormal, int64_t m, double* out);
 DG_API void dg_correlated(uint64_t* s, const double* x_in, double center, double scale, double a, double b, double mean, int lognormal, int64_t m, double* out);
 DG_API void dg_birthdate(uint64_t* s, const int64_t* ages, const int64_t* lower, const int64_t* upper, int64_t m, int32_t* out);

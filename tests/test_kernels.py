@@ -294,3 +294,26 @@ def test_join_views(lib, P):
         n = int(V[r, 0])
         if n <= 12:
             assert not raw[r, 4 + n :].any()
+
+
+def test_simd_copies_give_the_same_bits():
+    """normal/lognormal/correlated: a cópia AVX2 dos laços (quando a CPU tem) dá os mesmos bits da cópia base."""
+    import nini_datagen as dg  # noqa: PLC0415
+    from nini_datagen._native import lib  # noqa: PLC0415
+
+    def run() -> list[bytes]:
+        g = dg.DataGen(seed=7, threads=1)
+        x = g.normal(70_000, mean=40, std=10)
+        cols = [g.normal(70_000, mean=1, std=3), g.lognormal(70_000), g.correlated(70_000, other=x, rho=0.6,
+                lognormal=True, mean=8, std=0.5)]  # fmt: skip
+        return [c.to_numpy().tobytes() for c in cols]
+
+    before = lib().dg_simd(-1)
+    try:
+        lib().dg_simd(0)
+        base = run()
+        lib().dg_simd(1)
+        fast = run()
+    finally:
+        lib().dg_simd(before)
+    assert base == fast

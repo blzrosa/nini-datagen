@@ -22,6 +22,7 @@ from .._native import lib, ptr
 from ..config.relations import BirthdateConfig, ChoiceByConfig, CorrelatedConfig
 from ..core.arrow import arrow_type, primitive_to_series, views_to_series
 from ..core.blocks import Block
+from ..core.memory import empty
 from ..core.tables import Vocabulary
 from ..registry import registry
 from .base import Job, Provider, Run
@@ -100,7 +101,7 @@ class _BirthdateJob(Job):
         edges = days_before_years(on, np.arange(top + 2)).astype(np.int64)
         self.upper = np.ascontiguousarray(edges)  # último dia possível para a idade a: edges[a]
         self.lower = np.ascontiguousarray(edges[1:] + 1)  # primeiro dia possível: edges[a + 1] + 1
-        self.out = np.empty(n, np.int32)
+        self.out = empty(n, np.int32)
         self.age_validity = age_validity
 
     def fill(self, block: Block, state: np.ndarray) -> None:
@@ -137,7 +138,7 @@ class _CorrelatedJob(Job):
         self.b = config.std * math.sqrt(max(0.0, 1.0 - config.rho * config.rho))
         self.mean = config.mean
         self.lognormal = config.lognormal
-        self.out = np.empty(n, np.float64)
+        self.out = empty(n, np.float64)
 
     def fill(self, block: Block, state: np.ndarray) -> None:
         a, m = block.start, block.rows
@@ -176,11 +177,11 @@ class _ChoiceByJob(Job):
         self.edges = edges  # g + acumulado normalizado de cada opção, grupo a grupo
         self.vocab = vocab
         self.valid = valid
-        self.views = np.empty((n, 4), np.uint32)
+        self.views = empty((n, 4), np.uint32)
 
     def fill(self, block: Block, state: np.ndarray) -> None:
         a, m = block.start, block.rows
-        u = np.empty(m, np.float64)
+        u = empty(m, np.float64)
         lib().dg_rand_f64(ptr(state), 0.0, 1.0, m, ptr(u))
         u += self.group[a : a + m]
         idx = np.searchsorted(self.edges, u, side="right").astype(np.uint32)

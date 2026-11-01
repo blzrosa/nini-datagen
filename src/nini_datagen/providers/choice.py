@@ -13,6 +13,7 @@ from .._native import lib, ptr
 from ..config.choice import ChoiceConfig
 from ..core.arrow import bits_to_series, primitive_to_series, views_to_series
 from ..core.blocks import Block
+from ..core.memory import empty
 from ..core.tables import Vocabulary, alias_table
 from ..registry import registry
 from .base import Job, Provider, Run
@@ -37,7 +38,7 @@ class ViewsChoiceJob(Job):
     """Textos: copia a view (16 bytes) da opção sorteada; todas as linhas apontam para o texto do vocabulário."""
 
     def __init__(self, n: int, vocab: Vocabulary, tab: np.ndarray | None) -> None:
-        self.views = np.empty((n, 4), np.uint32)
+        self.views = empty((n, 4), np.uint32)
         self.vocab = vocab
         self.tab = tab
 
@@ -78,7 +79,7 @@ class IndexChoiceJob(Job):
         self.n = n
         self.k = len(values)
         self.tab = tab
-        self.idx = np.empty(n, np.int32)
+        self.idx = empty(n, np.int32)
         first = values[0]
         if isinstance(first, bool):
             self.values = np.array(values, dtype=np.bool_)

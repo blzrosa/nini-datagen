@@ -26,6 +26,7 @@ from .._native import lib, ptr
 from ..config.base import BaseConfig
 from ..core.arrow import primitive_to_series
 from ..core.blocks import Block, map_blocks, split
+from ..core.memory import empty
 from ..core.rng import block_states
 from ..core.views import trim
 from ..locales import Locale
@@ -88,7 +89,7 @@ class Run:
 
     def bits(self, p: float, suffix: str) -> np.ndarray:
         """Bits Bernoulli(p) para as ``n`` linhas, num fluxo auxiliar (bloco a bloco, como os dados)."""
-        out = np.empty(-(-self.n // 64), np.uint64)
+        out = empty(-(-self.n // 64), np.uint64)
         st = self.states(suffix)
         thr = probability_threshold(p)
         fn = lib().dg_bool_bits
@@ -150,7 +151,7 @@ def validity_bits(n: int, null_fraction: float) -> np.ndarray | None:
     """Buffer (vazio) dos bits de presença para ``n`` linhas, ou None se não há nulos."""
     if null_fraction <= 0.0:
         return None
-    return np.empty(-(-n // 64), np.uint64)
+    return empty(-(-n // 64), np.uint64)
 
 
 class Provider(ABC, Generic[C]):
@@ -233,7 +234,7 @@ class ArrayJob(Job):
 
     def __init__(self, n: int, dtype: Any, kernel: Kernel, *, post: Callable[[np.ndarray], None] | None = None,
                  typ: Any = None) -> None:  # fmt: skip
-        self.out = np.empty(n, dtype)
+        self.out = empty(n, dtype)
         self.kernel = kernel
         self.post = post
         self.typ = typ
@@ -265,7 +266,7 @@ class TextJob(Job):
 
     def __init__(self, n: int, stride: int, kernel: TextKernel, n_blocks: int, *, packed: bool = False,
                  slack: int = 0) -> None:  # fmt: skip
-        self.views = np.empty((n, 4), np.uint32)
+        self.views = empty((n, 4), np.uint32)
         self.stride = stride
         self.kernel = kernel
         self.packed = packed  # o kernel escreve os textos em sequência (stride = limite por linha): apara no fim
@@ -274,7 +275,7 @@ class TextJob(Job):
 
     def fill(self, block: Block, state: np.ndarray) -> None:
         seg = self.views[block.start : block.start + block.rows]
-        data = np.empty(block.rows * self.stride + self.slack, np.uint8) if self.stride else self._DUMMY
+        data = empty(block.rows * self.stride + self.slack, np.uint8) if self.stride else self._DUMMY
         self.kernel(ptr(state), block.rows, ptr(seg), ptr(data), block.row0)
         if self.stride:
             # uma passada no C++: aponta as views longas para o buffer deste bloco e mede os bytes usados
@@ -292,7 +293,7 @@ class BitsJob(Job):
 
     def __init__(self, n: int, threshold: int) -> None:
         self.n = n
-        self.bits = np.empty(-(-n // 64), np.uint64)
+        self.bits = empty(-(-n // 64), np.uint64)
         self.threshold = threshold
 
     def fill(self, block: Block, state: np.ndarray) -> None:
