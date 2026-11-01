@@ -11,12 +11,13 @@ O array devolvido é um array NumPy comum sobre o bloco do pool; o bloco volta a
 segura: fatias, a Series do Polars feita dele) deixa de existir. Buffers pequenos continuam com ``np.empty``.
 
 ``NINI_DATAGEN_POOL``: ``0`` desliga o pool (tudo com ``np.empty``); ``arrow`` usa o pool do pyarrow, como na 0.2.1
-(para comparar enquanto o pyarrow for dependência).
+(só para comparar; precisa do pyarrow instalado, que o pacote não exige).
 """
 
 from __future__ import annotations
 
 import ctypes
+import importlib
 import math
 import os
 import weakref
@@ -47,8 +48,10 @@ def _native_block(nbytes: int) -> ctypes.Array[Any]:
 
 
 def _arrow_block(nbytes: int) -> Any:
-    import pyarrow as pa  # noqa: PLC0415
-
+    try:
+        pa = importlib.import_module("pyarrow")  # opcional: só para comparar (o pacote não depende dele)
+    except ImportError as e:
+        raise RuntimeError(f"{POOL_ENV}=arrow precisa do pyarrow (uv sync --group arrow)") from e
     return pa.allocate_buffer(nbytes)
 
 

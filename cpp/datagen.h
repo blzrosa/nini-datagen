@@ -5,7 +5,7 @@
 #pragma once
 #include <stdint.h>
 
-#define DG_ABI_VERSION 12
+#define DG_ABI_VERSION 13
 
 // DG_API: exportada ao compilar a biblioteca (DG_BUILDING), importada ao usá-la de outro código C/C++
 #if defined(_WIN32)
@@ -87,6 +87,7 @@ DG_API void dg_xoshiro_streams(const uint64_t* seed, int64_t first, int64_t coun
 DG_API int64_t dg_views_used(uint32_t* V, int64_t m, int buf);
 DG_API int dg_init();
 DG_API int dg_abi_version();
+DG_API int64_t dg_count_unset(const uint8_t* bits, int64_t m);
 
 /* text.cpp */
 DG_API void dg_text_views(uint64_t* st, uint32_t k, const uint8_t* wch, const uint8_t* wln, const uint64_t* wtab, uint32_t wmin, uint32_t wmax, uint32_t smin, uint32_t smax, int64_t m, uint32_t* V, uint8_t* D);

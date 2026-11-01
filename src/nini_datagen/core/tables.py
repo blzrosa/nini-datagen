@@ -118,15 +118,13 @@ class ViewTable:
     def from_series(cls, s: Any) -> ViewTable:
         """Series String sem nulos -> views e buffers dela mesma (sem copiar); se o Polars não entregar como
         ``string_view`` de um pedaço só, monta pelas strings (lento, mas correto)."""
-        from .arrow import string_view_buffers  # noqa: PLC0415 (arrow importa polars/pyarrow)
+        from .arrow import string_view_buffers  # noqa: PLC0415 (arrow importa polars)
 
         if s.null_count():
             raise ValueError("a tabela de nomes não pode ter nulos")
         got = string_view_buffers(s.rechunk())
         if got is None:
             return cls.from_strings(s.to_list())
-        views, _, _, arr = got
-        datas = tuple(np.frombuffer(b, np.uint8) for b in arr.buffers()[2:] if b is not None)  # type: ignore[attr-defined]
-        views = np.ascontiguousarray(views)
+        views = np.ascontiguousarray(got.views)
         views.setflags(write=False)
-        return cls(views, datas, arr)
+        return cls(views, got.datas, got)

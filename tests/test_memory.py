@@ -91,6 +91,8 @@ def test_limit() -> None:
 
 @pytest.mark.parametrize("mode", ["0", "arrow"])
 def test_env_modes(monkeypatch: pytest.MonkeyPatch, mode: str) -> None:
+    if mode == "arrow":
+        pytest.importorskip("pyarrow")
     monkeypatch.setenv(POOL_ENV, mode)
     a = empty(POOL_MIN_BYTES, np.uint8)
     a[:] = 1

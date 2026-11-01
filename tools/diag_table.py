@@ -9,7 +9,7 @@ Em ns por linha, melhor de 3:
    montar as Series (`finish`) e o resto (expressões, montar o DataFrame), e quanto custa liberar a tabela (`del`);
 2. a memória sozinha, com o mesmo tamanho da tabela em 40 buffers (como as colunas): escrever pela primeira vez
    (o sistema entrega as páginas uma a uma), escrever de novo (páginas já entregues) e liberar; com o malloc do
-   sistema (NumPy) e com o pool de memória do pyarrow (que pode guardar a memória para a próxima vez);
+   sistema (NumPy), com o pool do nini-datagen e, se instalado, com o do pyarrow (que também guardam a memória);
 3. quanto custa criar o pool de threads (o `table` cria 3 por nível de dependência).
 
 Se a primeira escrita e a liberação custam perto do que sobra da tabela, o limite é o sistema operacional
@@ -19,6 +19,7 @@ entregando e tomando de volta a memória, não o código.
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import sys
 import time
@@ -28,7 +29,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pyarrow as pa
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -112,13 +112,18 @@ def touch(arrays: list[np.ndarray], threads: int) -> None:
 
 def memory(size: int, n: int, threads: int) -> None:
     piece = size // PIECES
-    pool = pa.default_memory_pool()
+    pa: Any
+    try:  # o pool do pyarrow só entra na comparação se ele estiver instalado (uv sync --group arrow)
+        pa = importlib.import_module("pyarrow")
+    except ImportError:
+        pa = None
 
     def numpy_bufs() -> list[np.ndarray]:
         return [np.empty(piece, np.uint8) for _ in range(PIECES)]
 
     def arrow_bufs() -> tuple[list[Any], list[np.ndarray]]:
-        bufs = [pa.allocate_buffer(piece, memory_pool=pool) for _ in range(PIECES)]
+        assert pa is not None
+        bufs = [pa.allocate_buffer(piece) for _ in range(PIECES)]
         return bufs, [np.frombuffer(b, np.uint8) for b in bufs]
 
     def native_bufs() -> tuple[None, list[np.ndarray]]:
@@ -126,11 +131,9 @@ def memory(size: int, n: int, threads: int) -> None:
 
         return None, [empty(piece, np.uint8) for _ in range(PIECES)]
 
-    options = (
-        ("NumPy (malloc)", None),
-        (f"pyarrow ({pool.backend_name})", arrow_bufs),
-        ("pool do nini (C++)", native_bufs),
-    )
+    options: list[tuple[str, Any]] = [("NumPy (malloc)", None), ("pool do nini (C++)", native_bufs)]
+    if pa is not None:
+        options.insert(1, (f"pyarrow ({pa.default_memory_pool().backend_name})", arrow_bufs))
     for label, make in options:
         first = second = free = float("inf")
         for _ in range(3):

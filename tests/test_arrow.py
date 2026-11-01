@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 pl = pytest.importorskip("polars")
-pytest.importorskip("pyarrow")
 
 from nini_datagen.core.arrow import bits_to_series, concat, numeric_to_series, views_to_series  # noqa: E402
 

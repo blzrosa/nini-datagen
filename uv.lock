@@ -247,11 +247,13 @@ dependencies = [
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "platformdirs" },
     { name = "polars" },
-    { name = "pyarrow" },
     { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
+arrow = [
+    { name = "pyarrow" },
+]
 bench = [
     { name = "dataforge-py", marker = "python_full_version >= '3.12'" },
     { name = "faker" },
@@ -273,11 +275,11 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24" },
     { name = "platformdirs", specifier = ">=3" },
     { name = "polars", specifier = ">=1.30" },
-    { name = "pyarrow", specifier = ">=19" },
     { name = "pydantic", specifier = ">=2.7" },
 ]
 
 [package.metadata.requires-dev]
+arrow = [{ name = "pyarrow", specifier = ">=19" }]
 bench = [
     { name = "dataforge-py", marker = "python_full_version >= '3.12'" },
     { name = "faker", specifier = ">=30" },

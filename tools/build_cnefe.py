@@ -1,7 +1,7 @@
 """build_cnefe.py -- gera as bases de endereço do pacote a partir dos dados do MVP (fake-data).
 
-    uv run python tools/build_cnefe.py --mvp ../fake-data          # tudo: municípios, base leve e base completa
-    uv run python tools/build_cnefe.py --mvp ../fake-data --lite-coverage 0.02
+    uv run --group arrow python tools/build_cnefe.py --mvp ../fake-data   # tudo: municípios, base leve e completa
+    uv run --group arrow python tools/build_cnefe.py --mvp ../fake-data --lite-coverage 0.02
 
 Entrada (pasta do MVP):
   data/municipios.parquet                       (fetch_ibge.py: id, nome, uf, populacao)
@@ -32,8 +32,8 @@ import zipfile
 from pathlib import Path
 
 import polars as pl
-import pyarrow as pa
-import pyarrow.parquet as pq
+import pyarrow as pa  # pyright: ignore[reportMissingImports]  # grupo arrow: uv run --group arrow ...
+import pyarrow.parquet as pq  # pyright: ignore[reportMissingImports]
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG_DATA = ROOT / "src" / "nini_datagen" / "locales" / "pt_BR" / "data"

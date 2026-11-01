@@ -33,9 +33,7 @@ dependencies = [
     "polars>=1.30",
     "pydantic>=2.7",
     "platformdirs>=3",
-    # embrulha os buffers do C++ como Arrow. string_view com vários buffers de texto em Array.from_buffers só funciona
-    # a partir do pyarrow 19 (apache/arrow#44651); a fase 2 do plano investiga tirar isto (interface PyCapsule do Arrow)
-    "pyarrow>=19",
+    # sem pyarrow desde a 0.3.0: os buffers vão ao Polars pela interface C do Arrow (PyCapsule), em core/arrow_c.py
 ]
 
 [project.urls]
@@ -57,6 +55,9 @@ dev = [
 # comparação com outras bibliotecas (tools/compare.py). O dataforge-py só existe para Python >= 3.12: no 3.11 ele
 # fica de fora e o compare.py pula a coluna dele. A tabela do repositório é gerada no 3.14:
 #   uv run --isolated --python 3.14 --group bench python tools/compare.py --markdown benchmarks/comparacao.md
+# ferramentas que leem/escrevem Arrow e Parquet direto (tools/build_cnefe.py) e a comparação com o pool de memória do
+# pyarrow (NINI_DATAGEN_POOL=arrow, tools/diag_table.py). O pacote em si não usa o pyarrow.
+arrow = ["pyarrow>=19"]
 bench = [
     "faker>=30",
     "mimesis>=12",

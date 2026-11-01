@@ -45,7 +45,7 @@ jobs:
       - run: uv run pytest -m "not bench" --cov --cov-report=term-missing
 
   min-deps:
-    # as versões mínimas declaradas (polars 1.30, pydantic 2.7, numpy 1.24, pyarrow 14...): o plano pede o scan testado
+    # as versões mínimas declaradas (polars 1.30, pydantic 2.7, numpy 1.24...): o plano pede o scan testado
     # na versão mais antiga do Polars que o pacote aceita, além da mais nova (que os outros jobs usam)
     runs-on: ubuntu-latest
     steps:

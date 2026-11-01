@@ -59,3 +59,18 @@ DG_EXPORT i64 dg_views_used(u32* V, i64 m, int buf) {
 // fracamente ordenada, outra thread poderia ver a flag "pronto" antes das tabelas).
 DG_EXPORT int dg_init() { init_cpf(); init_cnpj(); init_h2(); init_ip(); init_house_logs(); init_simd(); return 1; }
 DG_EXPORT int dg_abi_version() { return DG_ABI_VERSION; }
+
+// Linhas nulas (bit 0) entre as m primeiras de um bitmap de validade do Arrow (LSB primeiro), para o null_count da
+// interface C do Arrow (core/arrow_c.py). Lê de 8 em 8 bytes; popcount portátil (sem depender de intrínsecos).
+static inline u32 popcount64(u64 x) {
+  x = x - ((x >> 1) & 0x5555555555555555ull);
+  x = (x & 0x3333333333333333ull) + ((x >> 2) & 0x3333333333333333ull);
+  x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Full;
+  return (u32)((x * 0x0101010101010101ull) >> 56);
+}
+DG_EXPORT i64 dg_count_unset(const u8* bits, i64 m) {
+  i64 set = 0, full = m / 64, r = 0;
+  for (; r < full; r++) { u64 w; memcpy(&w, bits + 8 * r, 8); set += popcount64(w); }
+  for (i64 i = full * 64; i < m; i++) set += (bits[i >> 3] >> (i & 7)) & 1;
+  return m - set;
+}

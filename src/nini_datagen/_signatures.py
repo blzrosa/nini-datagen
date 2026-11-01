@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ctypes import c_double, c_float, c_int, c_int64, c_uint8, c_uint16, c_uint32, c_uint64, c_void_p
 
-ABI_VERSION = 12
+ABI_VERSION = 13
 
 # nome: (tipo de retorno, [tipos dos argumentos])
 SIGNATURES = {
@@ -57,6 +57,7 @@ SIGNATURES = {
     "dg_views_used": (c_int64, [c_void_p, c_int64, c_int]),
     "dg_init": (c_int, []),
     "dg_abi_version": (c_int, []),
+    "dg_count_unset": (c_int64, [c_void_p, c_int64]),
     "dg_text_views": (None, [c_void_p, c_uint32, c_void_p, c_void_p, c_void_p, c_uint32, c_uint32, c_uint32, c_uint32, c_int64, c_void_p, c_void_p]),
     "dg_template_views": (c_int64, [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_uint32, c_uint32, c_int, c_int64, c_int64, c_int64, c_void_p, c_void_p]),
 }

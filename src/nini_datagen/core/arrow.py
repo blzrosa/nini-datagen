@@ -1,7 +1,8 @@
-"""Entrega os buffers dos kernels ao Polars sem copiar (via Arrow).
+"""Entrega os buffers dos kernels ao Polars sem copiar, pela interface C do Arrow (`arrow_c`), sem o pyarrow.
 
-Hoje passa pelo pyarrow (``Array.from_buffers`` + ``pl.from_arrow``). A troca pela interface PyCapsule do Arrow, que
-dispensaria o pyarrow, está prevista no plano; por isso todo o contato com o pyarrow fica neste módulo.
+Até a 0.2.1 passava pelo pyarrow (``Array.from_buffers`` + ``pl.from_arrow``); desde a 0.3.0 os buffers vão direto ao
+Polars por PyCapsule (``__arrow_c_array__``), e as colunas de texto que o C++ lê vêm do ``__arrow_c_stream__`` da
+Series. Todo o contato com o formato Arrow fica neste módulo e em `arrow_c`.
 
 Validade (nulos): bits empacotados no formato do Arrow (1 = valor presente), um bit por linha, LSB primeiro.
 """
@@ -9,14 +10,18 @@ Validade (nulos): bits empacotados no formato do Arrow (1 = valor presente), um 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
-import pyarrow as pa
 
+from .._native import lib, ptr
+from .arrow_c import Imported, export_array, import_series
 from .views import trim, used_bytes
 
 __all__ = [
+    "ArrowType",
+    "StringViews",
     "apply_validity",
     "arrow_type",
     "bits_to_series",
@@ -27,36 +32,58 @@ __all__ = [
     "views_to_series",
 ]
 
-_NUMPY_TO_ARROW = {
-    np.dtype(np.int32): pa.int32(),
-    np.dtype(np.int64): pa.int64(),
-    np.dtype(np.uint32): pa.uint32(),
-    np.dtype(np.float32): pa.float32(),
-    np.dtype(np.float64): pa.float64(),
+
+@dataclass(frozen=True)
+class ArrowType:
+    """Tipo lógico de uma coluna primitiva: formato da interface C do Arrow e o tipo do Polars."""
+
+    format: bytes
+    dtype: pl.DataType
+
+
+_NUMPY_FORMATS = {
+    np.dtype(np.int32): b"i",
+    np.dtype(np.int64): b"l",
+    np.dtype(np.uint32): b"I",
+    np.dtype(np.uint8): b"C",
+    np.dtype(np.float32): b"f",
+    np.dtype(np.float64): b"g",
 }
+_TIME_UNITS = {"ms": b"m", "us": b"u", "ns": b"n"}
 
 
-def arrow_type(kind: str, unit: str | None = None) -> pa.DataType:
-    """Tipos Arrow usados pelos geradores: 'int32', 'int64', 'float32', 'float64', 'date', 'datetime'."""
+def arrow_type(kind: str, unit: str | None = None) -> ArrowType:
+    """Tipos lógicos usados pelos geradores: 'date' (Date sobre int32) e 'datetime' (Datetime sobre int64)."""
     if kind == "date":
-        return pa.date32()
+        return ArrowType(b"tdD", pl.Date())
     if kind == "datetime":
-        return pa.timestamp(unit or "us")
-    return _NUMPY_TO_ARROW[np.dtype(kind)]
+        u = unit or "us"
+        if u not in _TIME_UNITS:
+            raise ValueError(f"unidade de tempo não suportada: {u}")
+        return ArrowType(b"ts" + _TIME_UNITS[u] + b":", pl.Datetime(u))  # type: ignore[arg-type]
+    raise ValueError(f"tipo lógico não suportado: {kind}")
 
 
-def _validity_buffer(validity: np.ndarray | None, m: int) -> pa.Buffer | None:
+def _check_validity(validity: np.ndarray | None, m: int) -> np.ndarray | None:
     if validity is None:
         return None
     if validity.nbytes * 8 < m:
         raise ValueError("bits de validade insuficientes")
-    return pa.py_buffer(validity)
+    if not validity.flags.c_contiguous:
+        validity = np.ascontiguousarray(validity)
+    return validity
 
 
-def _wrap(arr: pa.Array, name: str) -> pl.Series:
-    s = pl.from_arrow(arr)
-    assert isinstance(s, pl.Series)
-    return s.alias(name)
+def _null_count(validity: np.ndarray | None, m: int) -> int:
+    return 0 if validity is None else int(lib().dg_count_unset(ptr(validity), m))
+
+
+def _series(fmt: bytes, m: int, buffers: list[np.ndarray | None], validity: np.ndarray | None, name: str) -> pl.Series:
+    exported = export_array(fmt, m, [validity, *buffers], _null_count(validity, m))
+    return pl.Series(values=exported).alias(name)  # pyright: ignore[reportArgumentType]
+
+
+_NO_SIZES = np.zeros(1, np.int64)  # buffer de tamanhos de uma string_view sem buffers de texto (não pode ser nulo)
 
 
 def views_to_series(
@@ -76,37 +103,35 @@ def views_to_series(
     m = len(views)
     if views.dtype != np.uint32 or views.ndim != 2 or views.shape[1] != 4 or not views.flags.c_contiguous:
         raise ValueError("views deve ser um array (m, 4) uint32 contíguo")
-    buffers = [_validity_buffer(validity, m), pa.py_buffer(views)]
     if isinstance(data, np.ndarray):
-        buffers.append(pa.py_buffer(trim(data, used_bytes(views)) if trim_data else data))
-    elif data is not None:
-        buffers.extend(pa.py_buffer(d) for d in data)
-    return _wrap(pa.Array.from_buffers(pa.string_view(), m, buffers), name)
+        datas = [trim(data, used_bytes(views)) if trim_data else data]
+    else:
+        datas = list(data) if data is not None else []
+    datas = [d if d.flags.c_contiguous else np.ascontiguousarray(d) for d in datas]
+    # string_view na interface C: validade, views, os buffers de texto e, por último, o tamanho (int64) de cada um
+    sizes = np.array([d.nbytes for d in datas], np.int64) if datas else _NO_SIZES
+    validity = _check_validity(validity, m)
+    return _series(b"vu", m, [views, *datas, sizes], validity, name)
 
 
 def primitive_to_series(
-    values: np.ndarray, name: str, validity: np.ndarray | None = None, typ: pa.DataType | None = None
+    values: np.ndarray, name: str, validity: np.ndarray | None = None, typ: ArrowType | None = None
 ) -> pl.Series:
     """Array numpy de tipo primitivo -> ``pl.Series``.
 
-    ``typ`` troca o tipo lógico do Arrow (ex.: date32 sobre int32). Sem nulos, vai direto do numpy para o Polars (sem
-    cópia, como no MVP): o caminho pelo pyarrow, medido no Windows, custava ~0,1 ns por byte a mais, proporcional ao
-    tamanho da coluna (o Polars copiava o buffer importado). Com nulos, o pyarrow junta o buffer de validade.
+    ``typ`` troca o tipo lógico (ex.: Date sobre int32). Sem nulos, vai direto do numpy para o Polars (sem cópia, como
+    no MVP); com nulos, pela interface C do Arrow, com o buffer de validade junto.
     """
     if values.ndim != 1 or not values.flags.c_contiguous:
         raise ValueError("values deve ser 1-D e contíguo")
     if validity is None:
         s = pl.Series(name, values)
-        if typ is None:
-            return s
-        if pa.types.is_date32(typ):
-            return s.cast(pl.Date)
-        if pa.types.is_timestamp(typ):
-            return s.cast(pl.Datetime(typ.unit))
-        raise ValueError(f"tipo lógico não suportado: {typ}")
-    typ = typ if typ is not None else _NUMPY_TO_ARROW[values.dtype]
+        return s if typ is None else s.cast(typ.dtype)
+    fmt = typ.format if typ is not None else _NUMPY_FORMATS.get(values.dtype)
+    if fmt is None:
+        raise ValueError(f"tipo numpy não suportado: {values.dtype}")
     m = len(values)
-    return _wrap(pa.Array.from_buffers(typ, m, [_validity_buffer(validity, m), pa.py_buffer(values)]), name)
+    return _series(fmt, m, [values], _check_validity(validity, m), name)
 
 
 def numeric_to_series(values: np.ndarray, name: str) -> pl.Series:
@@ -118,33 +143,56 @@ def bits_to_series(bits: np.ndarray, m: int, name: str, validity: np.ndarray | N
     """Bits empacotados (LSB primeiro, formato do Arrow) -> ``pl.Series`` Boolean."""
     if bits.nbytes * 8 < m:
         raise ValueError("bits insuficientes para m linhas")
-    return _wrap(pa.Array.from_buffers(pa.bool_(), m, [_validity_buffer(validity, m), pa.py_buffer(bits)]), name)
+    if not bits.flags.c_contiguous:
+        bits = np.ascontiguousarray(bits)
+    return _series(b"b", m, [bits], _check_validity(validity, m), name)
 
 
-def string_view_buffers(s: pl.Series) -> tuple[np.ndarray, np.ndarray | None, int, object] | None:
-    """As views ``(m, 4)`` uint32 e os bits de validade de uma Series String, sem copiar, para um kernel ler direto.
+@dataclass(frozen=True)
+class StringViews:
+    """Os buffers de uma Series String (string_view), sem copiar. Guarde o objeto enquanto usar os arrays: ele é o
+    dono da memória (o Polars só a libera quando ele deixa de existir)."""
 
-    Devolve ``(views, validade ou None, deslocamento em bits da validade, dono dos buffers)`` — guarde o dono enquanto
-    usar as views — ou None se o Polars não entregar a coluna como ``string_view`` de um pedaço só (aí o chamador usa
-    o caminho em Polars).
-    """
-    try:
-        arr = s.to_arrow(compat_level=pl.CompatLevel.newest())
-    except Exception:  # Polars antigo ou tipo sem exportação: cai no caminho em Polars
+    views: np.ndarray  # (m, 4) uint32, já a partir do deslocamento
+    validity: np.ndarray | None  # bits (uint8) a partir do byte 0: use ``bit_offset``
+    bit_offset: int
+    datas: tuple[np.ndarray, ...]  # os buffers de texto, na ordem do índice de buffer das views
+    owner: Imported
+
+
+def _from_address(addr: int, nbytes: int, dtype: type, owner: Imported) -> np.ndarray:
+    """Array NumPy sobre memória do Polars; o array segura ``owner`` (o dono dela), como faria um buffer do pyarrow."""
+    import ctypes  # noqa: PLC0415
+
+    if nbytes == 0:
+        return np.empty(0, dtype)
+    raw = (ctypes.c_uint8 * nbytes).from_address(addr)
+    raw.owner = owner  # type: ignore[attr-defined]  # o ctypes aceita atributos: liga a vida da memória ao array
+    return np.frombuffer(memoryview(raw).cast("B"), dtype)  # a memoryview segura `raw`, que segura o dono
+
+
+def string_view_buffers(s: pl.Series) -> StringViews | None:
+    """Os buffers de uma Series String, sem copiar, para um kernel ler direto; None se o Polars não entregar a coluna
+    como ``string_view`` de um pedaço só (aí o chamador usa o caminho em Polars)."""
+    imp = import_series(s)
+    if imp is None or imp.format != b"vu":
         return None
-    if isinstance(arr, pa.ChunkedArray):
-        if arr.num_chunks != 1:
-            return None
-        arr = arr.chunk(0)
-    if arr.type != pa.string_view():
+    arr = imp.array
+    off, m, nb = int(arr.offset), int(arr.length), int(arr.n_buffers)
+    views_addr = imp.buffer(1)
+    if views_addr is None or nb < 3:
         return None
-    validity, views = arr.buffers()[:2]
-    if views is None:
-        return None
-    off, m = arr.offset, len(arr)
-    v = np.frombuffer(views, dtype=np.uint32).reshape(-1, 4)[off : off + m]
-    bits = np.frombuffer(validity, dtype=np.uint8) if validity is not None else None
-    return v, bits, off, arr
+    views = _from_address(views_addr, (off + m) * 16, np.uint32, imp).reshape(-1, 4)[off : off + m]
+    vaddr = imp.buffer(0)
+    validity = _from_address(vaddr, (off + m + 7) // 8, np.uint8, imp) if vaddr is not None else None
+    k = nb - 3  # buffers de texto; o último buffer é o dos tamanhos
+    sizes_addr = imp.buffer(nb - 1)
+    sizes = _from_address(sizes_addr, 8 * k, np.int64, imp) if (k and sizes_addr is not None) else np.zeros(0, np.int64)
+    datas = []
+    for j in range(k):
+        addr = imp.buffer(2 + j)
+        datas.append(_from_address(addr, int(sizes[j]), np.uint8, imp) if addr is not None else np.empty(0, np.uint8))
+    return StringViews(views, validity, off, tuple(datas), imp)
 
 
 def apply_validity(s: pl.Series, validity: np.ndarray | None) -> pl.Series:

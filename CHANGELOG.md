@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: 
 - `birthdate` exige `on` (a data de referência das idades). Sem ela, a 0.2.1 usava a data de hoje com um
   `FutureWarning`, e os dados mudavam de um dia para o outro com a mesma semente; agora é erro, com a explicação.
 
+- O pyarrow deixou de ser dependência. Os buffers dos kernels vão ao Polars pela interface C do Arrow (PyCapsule,
+  `__arrow_c_array__`), e as colunas de texto que o C++ lê (sexo por linha, nomes de rua e bairro) vêm do
+  `__arrow_c_stream__` da Series, sem copiar: tudo em `core/arrow_c.py`, só com ctypes. `string_view_buffers` agora
+  devolve um `StringViews` (views, validade, deslocamento, buffers de texto e o dono da memória). Quem usava o pyarrow
+  junto continua podendo instalar; para as ferramentas que precisam dele, `uv sync --group arrow`.
+
 ### Memória
 - Pool de memória próprio, no C++ (`cpp/memory.cpp`), no lugar do pool do pyarrow da 0.2.1: guarda os blocos
   liberados (até 1 GiB por padrão) e reaproveita um de tamanho parecido na próxima tabela ou lote, sem pagar de novo

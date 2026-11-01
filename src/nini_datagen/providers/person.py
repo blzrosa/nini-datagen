@@ -129,10 +129,9 @@ def female_mask(sex: Any, run: Run, p_female: float) -> np.ndarray:
         s = s.cast(pl.String)
     got = string_view_buffers(s)
     if got is not None:  # caminho rápido: o C++ lê a primeira letra direto das views do Arrow, numa passada
-        views, valid, bit_offset, _owner = got
-        out = empty(run.n, np.uint8)
-        valid_ptr = ptr(valid) if valid is not None else None
-        unknown = lib().dg_sex_mask(ptr(views), valid_ptr, bit_offset, run.n, ptr(out))
+        out = empty(run.n, np.uint8)  # `got` segura a memória da coluna até o fim da chamada
+        valid_ptr = ptr(got.validity) if got.validity is not None else None
+        unknown = lib().dg_sex_mask(ptr(got.views), valid_ptr, got.bit_offset, run.n, ptr(out))
         known = out != 2 if unknown else None
         is_f = out
     else:  # mesma regra em Polars (mais lento)
