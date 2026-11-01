@@ -105,8 +105,9 @@ def _forget_pools() -> None:  # no processo filho de um fork, as threads do pai 
     _pools_lock = threading.Lock()
 
 
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=_forget_pools)
+_register_at_fork = getattr(os, "register_at_fork", None)  # não existe no Windows (nem para o pyright de lá)
+if _register_at_fork is not None:
+    _register_at_fork(after_in_child=_forget_pools)
 
 
 def parallel_map(fn: Callable[[Item], T], items: Sequence[Item], threads: int | None = None) -> list[T]:

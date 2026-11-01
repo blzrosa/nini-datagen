@@ -106,7 +106,7 @@ def test_fill_groups_balance_cost():
 
     items: list = list("abcdef")
     groups = _cost_groups(items, [60.0, 30.0, 10.0, 10.0, 5.0, 5.0], 3)
-    assert sorted(x for g in groups for x in g) == items
+    assert sorted(str(x) for g in groups for x in g) == items
     assert groups[0] == ["a"]
     assert len(groups) == 3
     assert _cost_groups(items, [1.0] * 6, 1) == [items]
