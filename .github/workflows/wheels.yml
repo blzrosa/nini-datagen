@@ -27,10 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         # ubuntu-24.04-arm: aarch64 nativo (sem QEMU); macos-15-intel: x86_64 (o macos-13 foi desativado em 12/2025;
-        # o GitHub mantém Intel até o fim do macOS 15, previsto para o 2º semestre de 2027); macos-14: arm64.
+        # o GitHub mantém Intel até o fim do macOS 15, previsto para o 2º semestre de 2027); macos-15: arm64 (o macos-14 é desativado em 02/11/2026).
         # windows-11-arm: Windows ARM64 nativo (desde a 0.3.0, que não depende mais do pyarrow, sem wheels win_arm64).
         # Lá o CPython oficial começa no 3.11 (o wheel py3 vale para qualquer versão) e a compilação é com o MSVC.
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-14]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-15]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -80,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-14]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-15]
         python: ["3.10", "3.14"]
         exclude:
           - os: windows-11-arm  # sem CPython ARM64 oficial antes do 3.11
