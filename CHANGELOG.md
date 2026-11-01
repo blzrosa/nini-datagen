@@ -2,7 +2,7 @@
 
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: [SemVer](https://semver.org/lang/pt-BR/).
 
-## [Não lançado] — 0.2.0
+## [0.2.0] — 2026-10-31
 
 Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a v0.2.0 reescreve a estrutura.
 
@@ -96,12 +96,12 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   (contra Faker, Mimesis e dataforge: ns por linha e validade das regras brasileiras; grupo `bench`), publicação no
   TestPyPI por `workflow_dispatch` com teste de instalação em máquinas limpas dos cinco alvos e no PyPI por release,
   CI com as versões mínimas das dependências (Polars 1.30), que mostrou que o pacote precisa do pyarrow ≥ 19
-  (string_view com vários buffers de texto). Versão 0.2.0rc1.
+  (string_view com vários buffers de texto). Testada como 0.2.0rc1 no TestPyPI: o wheel instala e gera dados em
+  máquinas limpas dos cinco alvos (Windows x86-64, Linux x86-64 e ARM64, macOS Intel e Apple Silicon), Python 3.11 e 3.14.
 - Meta de desempenho revista: a tabela de 20 colunas com 1 thread fica em ~300 ns/linha (MVP: 320,5); a meta de
   200 ns pediria reescrever os geradores mais caros (frase, e-mail, empresa), que já estão no ritmo do MVP ou melhor.
   Vale a regra geral de nenhum gerador ou tabela mais lento que o MVP.
 
 ### Próximo
-- Publicar a 0.2.0rc1 no TestPyPI, conferir a instalação limpa e publicar a 0.2.0 no PyPI.
-- Depois da 0.2.0: `scan` com muitas threads (a diferença está do lado do Polars), buffers sem pyarrow (PyCapsule) e
+- `scan` com muitas threads (a diferença está do lado do Polars), buffers sem pyarrow (PyCapsule) e
   wheels para Windows ARM64.

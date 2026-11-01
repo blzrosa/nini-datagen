@@ -14,9 +14,8 @@ Dados sintéticos realistas do Brasil, em escala: CPF, CNPJ (inclusive alfanumé
 IBGE, endereços do CNEFE, telefones, e-mails, textos e mais. Os geradores são kernels C++ que escrevem direto na
 memória do Polars (Arrow `string_view`), sem passar string por string pelo Python.
 
-> **Estado:** v0.2.0 em teste (0.2.0rc1; veja o [CHANGELOG](CHANGELOG.md)). Guia completo em
-> [docs/guia.md](docs/guia.md), números em [docs/desempenho.md](docs/desempenho.md) e exemplos em
-> [examples/](examples/).
+Guia completo em [docs/guia.md](docs/guia.md), números em [docs/desempenho.md](docs/desempenho.md), exemplos em
+[examples/](examples/) e mudanças no [CHANGELOG](CHANGELOG.md).
 
 ## Uso
 

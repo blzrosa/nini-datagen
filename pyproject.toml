@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "nini-datagen"
-version = "0.2.0rc1"
+version = "0.2.0"
 description = "Dados sintéticos realistas do Brasil em escala: kernels C++ que escrevem direto em Polars."
 readme = "README.md"
 requires-python = ">=3.11"
