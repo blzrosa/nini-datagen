@@ -2,7 +2,7 @@
 
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões: [SemVer](https://semver.org/lang/pt-BR/).
 
-## [Não lançado] — 0.3.0
+## [0.3.0] — 2026-11-01
 
 ### Requisitos
 - Python ≥ 3.10 (antes, 3.11): o mesmo wheel (tag `py3`) serve do 3.10 ao 3.14, testado no CI em todos; o datacompolars,
@@ -163,4 +163,4 @@ Primeira versão pública. A v0.1.0 foi o protótipo local (nunca publicado); a 
   Vale a regra geral de nenhum gerador ou tabela mais lento que o MVP.
 
 ### Próximo
-- 0.3.0: `birthdate` com `on` obrigatório, buffers sem pyarrow (PyCapsule) e wheels para Windows ARM64.
+- Feito na 0.3.0: `birthdate` com `on` obrigatório, buffers sem pyarrow (PyCapsule) e wheels para Windows ARM64.
